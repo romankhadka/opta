@@ -4,7 +4,7 @@ import OSLog
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let logger = Logger(subsystem: "io.github.romankhadka.opta", category: "switcher")
+    private let logger = Logger.opta(category: "switcher")
     private let windowProvider = SystemWindowProvider()
     private let windowActivator = WindowActivator()
     private let overlayController = SwitcherOverlayController()

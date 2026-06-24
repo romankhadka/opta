@@ -9,10 +9,14 @@ public final class WindowRecencyHistory {
     }
 
     public func sorted(_ windows: [WindowSnapshot]) -> [WindowSnapshot] {
-        windows.enumerated()
+        let rankByID = Dictionary(
+            uniqueKeysWithValues: recentWindowIDs.enumerated().map { ($1, $0) }
+        )
+
+        return windows.enumerated()
             .sorted { firstWindow, secondWindow in
-                let firstExplicitRank = explicitRank(for: firstWindow.element.id)
-                let secondExplicitRank = explicitRank(for: secondWindow.element.id)
+                let firstExplicitRank = rankByID[firstWindow.element.id]
+                let secondExplicitRank = rankByID[secondWindow.element.id]
 
                 switch (firstExplicitRank, secondExplicitRank) {
                 case let (firstRank?, secondRank?):
@@ -32,9 +36,5 @@ public final class WindowRecencyHistory {
                 return firstWindow.offset < secondWindow.offset
             }
             .map(\.element)
-    }
-
-    private func explicitRank(for windowID: UInt32) -> Int? {
-        recentWindowIDs.firstIndex(of: windowID)
     }
 }

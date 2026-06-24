@@ -158,20 +158,17 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         launchAtLoginItem.title = launchAtLoginController.menuState.checkboxTitle
         launchAtLoginItem.state = .off
 
-        switch launchAtLoginController.menuState {
-        case .off:
-            launchAtLoginItem.isEnabled = true
-            launchAtLoginItem.toolTip = nil
-        case .on:
-            launchAtLoginItem.isEnabled = true
-            launchAtLoginItem.toolTip = nil
+        let (isEnabled, toolTip): (Bool, String?) = switch launchAtLoginController.menuState {
+        case .off, .on:
+            (true, nil)
         case .requiresApproval:
-            launchAtLoginItem.isEnabled = true
-            launchAtLoginItem.toolTip = "Approve Opta in System Settings > General > Login Items."
+            (true, "Approve Opta in System Settings > General > Login Items.")
         case .unavailable:
-            launchAtLoginItem.isEnabled = false
-            launchAtLoginItem.toolTip = "Launch at Login is unavailable for this app bundle."
+            (false, "Launch at Login is unavailable for this app bundle.")
         }
+
+        launchAtLoginItem.isEnabled = isEnabled
+        launchAtLoginItem.toolTip = toolTip
     }
 
     private func refreshCurrentApplicationShortcutMenuItem() {

@@ -4,7 +4,7 @@ import OptaCore
 import OSLog
 
 struct WindowActivator {
-    private let logger = Logger(subsystem: "io.github.romankhadka.opta", category: "activation")
+    private let logger = Logger.opta(category: "activation")
 
     @discardableResult
     func activate(_ window: WindowSnapshot) -> Bool {
@@ -165,41 +165,34 @@ struct WindowActivator {
     }
 
     private func pointAttribute(_ attribute: String, for window: AXUIElement) -> CGPoint? {
-        var rawPoint: CFTypeRef?
-        let copyResult = AXUIElementCopyAttributeValue(window, attribute as CFString, &rawPoint)
-
-        guard copyResult == .success,
-              let rawPoint,
-              CFGetTypeID(rawPoint) == AXValueGetTypeID() else {
-            return nil
+        axValue(attribute, for: window) { value in
+            var point = CGPoint.zero
+            return AXValueGetValue(value, .cgPoint, &point) ? point : nil
         }
-
-        let pointValue = rawPoint as! AXValue
-        var point = CGPoint.zero
-        guard AXValueGetValue(pointValue, .cgPoint, &point) else {
-            return nil
-        }
-
-        return point
     }
 
     private func sizeAttribute(_ attribute: String, for window: AXUIElement) -> CGSize? {
-        var rawSize: CFTypeRef?
-        let copyResult = AXUIElementCopyAttributeValue(window, attribute as CFString, &rawSize)
+        axValue(attribute, for: window) { value in
+            var size = CGSize.zero
+            return AXValueGetValue(value, .cgSize, &size) ? size : nil
+        }
+    }
+
+    private func axValue<Value>(
+        _ attribute: String,
+        for window: AXUIElement,
+        extract: (AXValue) -> Value?
+    ) -> Value? {
+        var rawValue: CFTypeRef?
+        let copyResult = AXUIElementCopyAttributeValue(window, attribute as CFString, &rawValue)
 
         guard copyResult == .success,
-              let rawSize,
-              CFGetTypeID(rawSize) == AXValueGetTypeID() else {
+              let rawValue,
+              CFGetTypeID(rawValue) == AXValueGetTypeID() else {
             return nil
         }
 
-        let sizeValue = rawSize as! AXValue
-        var size = CGSize.zero
-        guard AXValueGetValue(sizeValue, .cgSize, &size) else {
-            return nil
-        }
-
-        return size
+        return extract(rawValue as! AXValue)
     }
 
     private func boundsDescription(_ bounds: WindowBounds?) -> String {

@@ -122,18 +122,14 @@ final class SwitcherOverlayController {
             return
         }
 
-        let tileWidth: CGFloat = 160
-        let tileHeight: CGFloat = 148
-        let tileSpacing: CGFloat = 12
-        let panelPadding: CGFloat = 24
-        let columnCount = min(max(itemCount, 1), 6)
-        let rowCount = Int(ceil(Double(max(itemCount, 1)) / 6.0))
-        let width = panelPadding * 2 +
-            CGFloat(columnCount) * tileWidth +
-            CGFloat(max(columnCount - 1, 0)) * tileSpacing
-        let height = panelPadding * 2 +
-            CGFloat(rowCount) * tileHeight +
-            CGFloat(max(rowCount - 1, 0)) * tileSpacing
+        let columnCount = SwitcherLayout.columnCount(for: itemCount)
+        let rowCount = Int(ceil(Double(max(itemCount, 1)) / Double(SwitcherLayout.maxColumns)))
+        let width = SwitcherLayout.panelPadding * 2 +
+            CGFloat(columnCount) * SwitcherLayout.tileWidth +
+            CGFloat(max(columnCount - 1, 0)) * SwitcherLayout.tileSpacing
+        let height = SwitcherLayout.panelPadding * 2 +
+            CGFloat(rowCount) * SwitcherLayout.tileHeight +
+            CGFloat(max(rowCount - 1, 0)) * SwitcherLayout.tileSpacing
 
         let screen = screenContainingMouse() ?? NSScreen.main ?? NSScreen.screens.first
         let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
@@ -150,6 +146,18 @@ final class SwitcherOverlayController {
         return NSScreen.screens.first { screen in
             screen.frame.contains(mouseLocation)
         }
+    }
+}
+
+private enum SwitcherLayout {
+    static let tileWidth: CGFloat = 160
+    static let tileHeight: CGFloat = 148
+    static let tileSpacing: CGFloat = 12
+    static let panelPadding: CGFloat = 24
+    static let maxColumns = 6
+
+    static func columnCount(for itemCount: Int) -> Int {
+        min(max(itemCount, 1), maxColumns)
     }
 }
 
@@ -170,10 +178,9 @@ private struct SwitcherOverlayView: View {
     let onClickWindow: (UInt32) -> Void
 
     private var columns: [GridItem] {
-        let columnCount = min(max(items.count, 1), 6)
-        return Array(
-            repeating: GridItem(.fixed(160), spacing: 12, alignment: .top),
-            count: columnCount
+        Array(
+            repeating: GridItem(.fixed(SwitcherLayout.tileWidth), spacing: SwitcherLayout.tileSpacing, alignment: .top),
+            count: SwitcherLayout.columnCount(for: items.count)
         )
     }
 
@@ -187,7 +194,7 @@ private struct SwitcherOverlayView: View {
                 )
                 .shadow(color: .black.opacity(0.38), radius: 32, y: 18)
 
-            LazyVGrid(columns: columns, alignment: .center, spacing: 12) {
+            LazyVGrid(columns: columns, alignment: .center, spacing: SwitcherLayout.tileSpacing) {
                 ForEach(items) { item in
                     SwitcherTileView(
                         item: item,
@@ -198,7 +205,7 @@ private struct SwitcherOverlayView: View {
                     .id(item.id)
                 }
             }
-            .padding(24)
+            .padding(SwitcherLayout.panelPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -239,7 +246,7 @@ private struct SwitcherTileView: View {
             }
         }
         .padding(10)
-        .frame(width: 160, height: 148, alignment: .topLeading)
+        .frame(width: SwitcherLayout.tileWidth, height: SwitcherLayout.tileHeight, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .fill(isSelected ? Color.white.opacity(0.20) : Color.white.opacity(0.07))
