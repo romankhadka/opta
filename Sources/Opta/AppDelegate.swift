@@ -6,9 +6,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowProvider = SystemWindowProvider()
     private let windowActivator = WindowActivator()
     private let overlayController = SwitcherOverlayController()
+    private let recencyHistory = WindowRecencyHistory()
     private var keyboardEventTap: KeyboardEventTap?
     private var statusMenuController: StatusMenuController?
-    private lazy var cycler = WindowCycler(provider: windowProvider)
+    private lazy var cycler = WindowCycler(provider: windowProvider, recencyHistory: recencyHistory)
     private lazy var coordinator = SwitcherCoordinator(cycler: cycler)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -93,6 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        windowActivator.activate(selectedWindow)
+        if windowActivator.activate(selectedWindow) {
+            recencyHistory.record(windowID: selectedWindow.id)
+        }
     }
 }

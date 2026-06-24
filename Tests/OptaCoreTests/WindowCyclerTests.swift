@@ -57,6 +57,25 @@ struct WindowCyclerTests {
         #expect(session.selectedWindow?.id == 2)
     }
 
+    @Test("explicitly used windows outrank stale system stacking order")
+    func explicitlyUsedWindowsOutrankStaleSystemStackingOrder() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "System Front", recencyRank: 0),
+                window(id: 2, processIdentifier: 101, title: "User Selected", recencyRank: 10),
+                window(id: 3, processIdentifier: 102, title: "Older", recencyRank: 20),
+            ]
+        )
+        let recencyHistory = WindowRecencyHistory()
+        recencyHistory.record(windowID: 2)
+        let cycler = WindowCycler(provider: provider, recencyHistory: recencyHistory)
+
+        let session = cycler.start(scope: .allApplications)
+
+        #expect(session.windows.map(\.id) == [2, 1, 3])
+        #expect(session.selectedWindow?.id == 2)
+    }
+
     @Test("advancing a session wraps through available windows")
     func advancesAndWraps() {
         var session = WindowCycleSession(

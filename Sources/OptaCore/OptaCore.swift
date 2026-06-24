@@ -104,13 +104,17 @@ public struct WindowCycleSession: Equatable, Sendable {
 
 public final class WindowCycler {
     private let provider: WindowProviding
+    private let recencyHistory: WindowRecencyHistory?
 
-    public init(provider: WindowProviding) {
+    public init(provider: WindowProviding, recencyHistory: WindowRecencyHistory? = nil) {
         self.provider = provider
+        self.recencyHistory = recencyHistory
     }
 
     public func start(scope: WindowCycleScope) -> WindowCycleSession {
-        let windows = provider.availableWindows().stableSortedByRecentUse()
+        let availableWindows = provider.availableWindows()
+        let sortedWindows = recencyHistory?.sorted(availableWindows) ?? availableWindows.stableSortedByRecentUse()
+        let windows = sortedWindows
             .filter(\.isCyclable)
             .filter { window in
                 switch scope {
