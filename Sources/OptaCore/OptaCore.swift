@@ -170,6 +170,17 @@ public final class SwitcherCoordinator {
         return session
     }
 
+    @discardableResult
+    public func advanceActiveSession(_ direction: WindowCycleDirection) -> WindowCycleSession? {
+        guard var session = activeSession else {
+            return nil
+        }
+
+        session.advance(direction)
+        activeSession = session
+        return session
+    }
+
     public func release() -> WindowSnapshot? {
         defer {
             activeScope = nil

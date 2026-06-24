@@ -8,11 +8,13 @@ final class KeyboardEventTap: @unchecked Sendable {
 
     private let onCycleAllApplications: @MainActor @Sendable (WindowCycleDirection) -> Void
     private let onCycleCurrentApplication: @MainActor @Sendable (WindowCycleDirection) -> Void
+    private let onCycleActiveSession: @MainActor @Sendable (WindowCycleDirection) -> Void
     private let onModifierRelease: @MainActor @Sendable () -> Void
     private let onCancel: @MainActor @Sendable () -> Void
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var optionWasDown = false
+    private var shiftWasDown = false
     // Written from the main actor, read on the event-tap callback; both run on
     // the main run loop, so the @unchecked Sendable access is single-threaded.
     private var sessionIsActive = false
@@ -21,11 +23,13 @@ final class KeyboardEventTap: @unchecked Sendable {
     init(
         onCycleAllApplications: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onCycleCurrentApplication: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
+        onCycleActiveSession: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onModifierRelease: @escaping @MainActor @Sendable () -> Void,
         onCancel: @escaping @MainActor @Sendable () -> Void
     ) {
         self.onCycleAllApplications = onCycleAllApplications
         self.onCycleCurrentApplication = onCycleCurrentApplication
+        self.onCycleActiveSession = onCycleActiveSession
         self.onModifierRelease = onModifierRelease
         self.onCancel = onCancel
     }
@@ -111,14 +115,27 @@ final class KeyboardEventTap: @unchecked Sendable {
     }
 
     private func handleFlagsChanged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        let optionIsDown = event.flags.contains(.maskAlternate)
+        let flags = event.flags
+        let optionIsDown = flags.contains(.maskAlternate)
+        let shiftIsDown = flags.contains(.maskShift)
+
         if optionWasDown && !optionIsDown {
             optionWasDown = false
+            shiftWasDown = false
             Task { @MainActor [onModifierRelease] in
                 onModifierRelease()
             }
         } else if optionIsDown {
+            if sessionIsActive && shiftIsDown && !shiftWasDown {
+                Task { @MainActor [onCycleActiveSession] in
+                    onCycleActiveSession(.backward)
+                }
+            }
+
             optionWasDown = true
+            shiftWasDown = shiftIsDown
+        } else {
+            shiftWasDown = false
         }
 
         return Unmanaged.passUnretained(event)
