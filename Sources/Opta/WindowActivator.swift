@@ -1,21 +1,31 @@
 import ApplicationServices
 import AppKit
 import OptaCore
+import OSLog
 
 struct WindowActivator {
+    private let logger = Logger(subsystem: "io.github.romankhadka.opta", category: "activation")
+
     @discardableResult
     func activate(_ window: WindowSnapshot) -> Bool {
         let processIdentifier = pid_t(window.processIdentifier)
         guard let application = NSRunningApplication(processIdentifier: processIdentifier) else {
+            logger.error("missing app pid=\(window.processIdentifier, privacy: .public)")
             return false
         }
 
         let accessibilityApplication = AXUIElementCreateApplication(processIdentifier)
         guard let accessibilityWindow = findWindow(matching: window, in: accessibilityApplication) else {
+            logger.error(
+                "no accessibility match id=\(window.id, privacy: .public) pid=\(window.processIdentifier, privacy: .public) title=\(window.displayTitle, privacy: .public)"
+            )
             application.activate(options: [])
             return true
         }
 
+        logger.debug(
+            "activate match id=\(window.id, privacy: .public) pid=\(window.processIdentifier, privacy: .public) title=\(window.displayTitle, privacy: .public)"
+        )
         application.activate(options: [])
         AXUIElementSetAttributeValue(
             accessibilityApplication,
@@ -54,20 +64,32 @@ struct WindowActivator {
             return nil
         }
 
-        let candidates = windows.map { accessibilityWindow in
+        let candidates = windows.enumerated().map { order, accessibilityWindow in
             AccessibilityWindowCandidate(
                 window: accessibilityWindow,
                 candidate: WindowActivationCandidate(
                     windowNumber: windowNumber(for: accessibilityWindow),
                     title: title(for: accessibilityWindow),
-                    bounds: bounds(for: accessibilityWindow)
+                    bounds: bounds(for: accessibilityWindow),
+                    order: order
                 )
+            )
+        }
+        let targetOrder = windowOrder(for: window)
+
+        logger.debug(
+            "matching id=\(window.id, privacy: .public) targetOrder=\(targetOrder ?? -1, privacy: .public) title=\(window.displayTitle, privacy: .public) bounds=\(boundsDescription(window.bounds), privacy: .public)"
+        )
+        for candidate in candidates {
+            logger.debug(
+                "candidate order=\(candidate.candidate.order ?? -1, privacy: .public) number=\(candidate.candidate.windowNumber ?? 0, privacy: .public) title=\(candidate.candidate.title, privacy: .public) bounds=\(boundsDescription(candidate.candidate.bounds), privacy: .public)"
             )
         }
 
         guard let match = WindowActivationMatcher.bestMatch(
             for: window,
-            candidates: candidates.map(\.candidate)
+            candidates: candidates.map(\.candidate),
+            targetOrder: targetOrder
         ) else {
             return nil
         }
@@ -88,6 +110,29 @@ struct WindowActivator {
         }
 
         return number.uint32Value
+    }
+
+    private func windowOrder(for window: WindowSnapshot) -> Int? {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let windowInfo = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        let windowIDs = windowInfo.compactMap { rawWindow -> UInt32? in
+            guard
+                let processIdentifier = rawWindow[kCGWindowOwnerPID as String] as? NSNumber,
+                processIdentifier.int32Value == window.processIdentifier,
+                let layer = rawWindow[kCGWindowLayer as String] as? NSNumber,
+                layer.intValue == 0,
+                let windowNumber = rawWindow[kCGWindowNumber as String] as? NSNumber
+            else {
+                return nil
+            }
+
+            return windowNumber.uint32Value
+        }
+
+        return windowIDs.firstIndex(of: window.id)
     }
 
     private func title(for window: AXUIElement) -> String {
@@ -155,6 +200,14 @@ struct WindowActivator {
         }
 
         return size
+    }
+
+    private func boundsDescription(_ bounds: WindowBounds?) -> String {
+        guard let bounds else {
+            return "nil"
+        }
+
+        return "x=\(Int(bounds.x)) y=\(Int(bounds.y)) w=\(Int(bounds.width)) h=\(Int(bounds.height))"
     }
 }
 

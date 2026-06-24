@@ -1,8 +1,10 @@
 import AppKit
 import OptaCore
+import OSLog
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let logger = Logger(subsystem: "io.github.romankhadka.opta", category: "switcher")
     private let windowProvider = SystemWindowProvider()
     private let windowActivator = WindowActivator()
     private let overlayController = SwitcherOverlayController()
@@ -44,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cycleAllApplications(direction: WindowCycleDirection) {
         let session = coordinator.press(scope: .allApplications, direction: direction)
+        logger.debug(
+            "cycle all direction=\(String(describing: direction), privacy: .public) windows=\(session.windows.map(\.id).description, privacy: .public) selected=\(session.selectedWindow?.id ?? 0, privacy: .public)"
+        )
         show(session: session)
     }
 
@@ -56,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let session = coordinator.press(
             scope: .currentApplication(processIdentifier: frontmostProcessIdentifier),
             direction: direction
+        )
+        logger.debug(
+            "cycle current pid=\(frontmostProcessIdentifier, privacy: .public) direction=\(String(describing: direction), privacy: .public) windows=\(session.windows.map(\.id).description, privacy: .public) selected=\(session.selectedWindow?.id ?? 0, privacy: .public)"
         )
         show(session: session)
     }
@@ -95,6 +103,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if windowActivator.activate(selectedWindow) {
+            logger.debug(
+                "record selected window=\(selectedWindow.id, privacy: .public) app=\(selectedWindow.applicationName, privacy: .public) title=\(selectedWindow.displayTitle, privacy: .public)"
+            )
             recencyHistory.record(windowID: selectedWindow.id)
         }
     }

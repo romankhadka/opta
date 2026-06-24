@@ -44,6 +44,40 @@ struct WindowActivationMatcherTests {
 
         #expect(match == candidates[1])
     }
+
+    @Test("uses window order to break identical bounds ties")
+    func usesWindowOrderToBreakIdenticalBoundsTies() {
+        let selectedWindow = window(
+            id: 42,
+            title: "",
+            x: 0,
+            y: 30,
+            width: 3200,
+            height: 1770
+        )
+        let candidates = [
+            WindowActivationCandidate(
+                windowNumber: nil,
+                title: "Current",
+                bounds: selectedWindow.bounds,
+                order: 0
+            ),
+            WindowActivationCandidate(
+                windowNumber: nil,
+                title: "Target",
+                bounds: selectedWindow.bounds,
+                order: 1
+            ),
+        ]
+
+        let match = WindowActivationMatcher.bestMatch(
+            for: selectedWindow,
+            candidates: candidates,
+            targetOrder: 1
+        )
+
+        #expect(match == candidates[1])
+    }
 }
 
 private func window(
