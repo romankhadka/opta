@@ -58,7 +58,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        overlayController.show(session: session)
+        overlayController.show(
+            session: session,
+            onHoverWindow: { [weak self] windowID in
+                self?.select(windowID: windowID)
+            },
+            onClickWindow: { [weak self] windowID in
+                self?.select(windowID: windowID)
+                self?.commitSelection()
+            }
+        )
+    }
+
+    private func select(windowID: UInt32) {
+        guard let session = coordinator.select(windowID: windowID) else {
+            return
+        }
+
+        overlayController.update(session: session)
     }
 
     private func commitSelection() {

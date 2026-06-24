@@ -90,6 +90,25 @@ struct WindowCyclerTests {
         #expect(session.selectedWindow?.id == 2)
     }
 
+    @Test("selecting a window by id changes the selected window")
+    func selectsWindowByID() {
+        var session = WindowCycleSession(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "One"),
+                window(id: 2, processIdentifier: 101, title: "Two"),
+                window(id: 3, processIdentifier: 102, title: "Three"),
+            ]
+        )
+
+        let didSelectKnownWindow = session.select(windowID: 3)
+        #expect(didSelectKnownWindow)
+        #expect(session.selectedWindow?.id == 3)
+
+        let didSelectUnknownWindow = session.select(windowID: 99)
+        #expect(!didSelectUnknownWindow)
+        #expect(session.selectedWindow?.id == 3)
+    }
+
     @Test("the first hotkey press selects the next window")
     func firstHotkeyPressSelectsNextWindow() {
         let provider = StubWindowProvider(
@@ -130,6 +149,25 @@ struct WindowCyclerTests {
 
         let secondPress = coordinator.press(scope: .allApplications, direction: .backward)
         #expect(secondPress.selectedWindow?.id == 2)
+    }
+
+    @Test("selecting a window updates the active coordinator session")
+    func selectingWindowUpdatesActiveCoordinatorSession() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Current"),
+                window(id: 2, processIdentifier: 101, title: "Previous"),
+                window(id: 3, processIdentifier: 102, title: "Older"),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider)
+        let coordinator = SwitcherCoordinator(cycler: cycler)
+
+        _ = coordinator.press(scope: .allApplications)
+        let selectedSession = coordinator.select(windowID: 3)
+
+        #expect(selectedSession?.selectedWindow?.id == 3)
+        #expect(coordinator.release()?.id == 3)
     }
 }
 

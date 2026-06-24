@@ -4,17 +4,32 @@ import SwiftUI
 
 @MainActor
 final class SwitcherOverlayController {
+    private typealias WindowInteraction = (UInt32) -> Void
+
     private let previewProvider = WindowPreviewProvider()
     private var panel: NSPanel?
     private var hostingView: NSHostingView<SwitcherOverlayView>?
     private var currentSession: WindowCycleSession?
     private var previewRefreshTask: Task<Void, Never>?
+    private var onHoverWindow: WindowInteraction = { _ in }
+    private var onClickWindow: WindowInteraction = { _ in }
 
-    func show(session: WindowCycleSession) {
+    func show(
+        session: WindowCycleSession,
+        onHoverWindow: @escaping (UInt32) -> Void,
+        onClickWindow: @escaping (UInt32) -> Void
+    ) {
+        self.onHoverWindow = onHoverWindow
+        self.onClickWindow = onClickWindow
         currentSession = session
         render(session: session)
         refreshPreviews(for: session.windows)
         panel?.orderFrontRegardless()
+    }
+
+    func update(session: WindowCycleSession) {
+        currentSession = session
+        render(session: session)
     }
 
     func hide() {
@@ -33,7 +48,12 @@ final class SwitcherOverlayController {
             )
         }
         let selectedWindowID = session.selectedWindow?.id
-        let overlayView = SwitcherOverlayView(items: items, selectedWindowID: selectedWindowID)
+        let overlayView = SwitcherOverlayView(
+            items: items,
+            selectedWindowID: selectedWindowID,
+            onHoverWindow: onHoverWindow,
+            onClickWindow: onClickWindow
+        )
 
         if let hostingView {
             hostingView.rootView = overlayView
@@ -56,6 +76,8 @@ final class SwitcherOverlayController {
         panel.backgroundColor = .clear
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.hasShadow = true
+        panel.ignoresMouseEvents = false
+        panel.acceptsMouseMovedEvents = true
         panel.isMovable = false
         panel.isOpaque = false
         panel.level = .statusBar
@@ -129,6 +151,8 @@ private struct SwitcherDisplayItem: Identifiable {
 private struct SwitcherOverlayView: View {
     let items: [SwitcherDisplayItem]
     let selectedWindowID: UInt32?
+    let onHoverWindow: (UInt32) -> Void
+    let onClickWindow: (UInt32) -> Void
 
     private var columns: [GridItem] {
         let columnCount = min(max(items.count, 1), 6)
@@ -152,7 +176,9 @@ private struct SwitcherOverlayView: View {
                 ForEach(items) { item in
                     SwitcherTileView(
                         item: item,
-                        isSelected: item.id == selectedWindowID
+                        isSelected: item.id == selectedWindowID,
+                        onHoverWindow: onHoverWindow,
+                        onClickWindow: onClickWindow
                     )
                     .id(item.id)
                 }
@@ -166,6 +192,8 @@ private struct SwitcherOverlayView: View {
 private struct SwitcherTileView: View {
     let item: SwitcherDisplayItem
     let isSelected: Bool
+    let onHoverWindow: (UInt32) -> Void
+    let onClickWindow: (UInt32) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -209,6 +237,17 @@ private struct SwitcherTileView: View {
                 )
         )
         .scaleEffect(isSelected ? 1.025 : 1.0)
+        .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .onHover { isHovering in
+            guard isHovering else {
+                return
+            }
+
+            onHoverWindow(item.id)
+        }
+        .onTapGesture {
+            onClickWindow(item.id)
+        }
         .animation(.snappy(duration: 0.12), value: isSelected)
     }
 

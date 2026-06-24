@@ -90,6 +90,16 @@ public struct WindowCycleSession: Equatable, Sendable {
             selectedIndex = (selectedIndex - 1 + windows.count) % windows.count
         }
     }
+
+    @discardableResult
+    public mutating func select(windowID: UInt32) -> Bool {
+        guard let index = windows.firstIndex(where: { $0.id == windowID }) else {
+            return false
+        }
+
+        selectedIndex = index
+        return true
+    }
 }
 
 public final class WindowCycler {
@@ -142,6 +152,16 @@ public final class SwitcherCoordinator {
         }
 
         activeScope = scope
+        activeSession = session
+        return session
+    }
+
+    @discardableResult
+    public func select(windowID: UInt32) -> WindowCycleSession? {
+        guard var session = activeSession, session.select(windowID: windowID) else {
+            return activeSession
+        }
+
         activeSession = session
         return session
     }
