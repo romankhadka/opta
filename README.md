@@ -6,9 +6,10 @@ Opta is a native macOS window switcher for people who want Option-based cycling:
 - `Option` + `` ` `` cycles through visible windows from the current application.
 - Add `Shift` to either shortcut to cycle backward.
 - Release `Option` to activate the selected window.
+- Press `Escape` to dismiss the switcher without activating anything.
 - Hover a tile to select it.
 - Click a tile to activate that window immediately.
-- Use the menu bar item to turn Launch at Login on or off.
+- Use the menu bar item to toggle current-application cycling or Launch at Login.
 
 The switcher shows live window previews when Screen Recording permission is available, then falls back to the application icon. Each tile includes the window title, application name, and app icon.
 
@@ -39,6 +40,14 @@ On first launch, Opta asks macOS for Accessibility, Input Monitoring, and Screen
 - Open Screen Recording Settings
 
 After enabling any permission, relaunch Opta so macOS applies the change.
+
+## Current-application cycling
+
+`Option` + `` ` `` is also the macOS grave-accent dead key used to type
+characters such as à, è, ì, ò, and ù. If you type those, open the Opta menu bar
+icon and turn off **Cycle Current App (⌥`)**; the dead key then passes through to
+the focused app. `Option` + `Tab` cycling is unaffected. The choice is
+remembered across launches.
 
 ## Launch at Login
 

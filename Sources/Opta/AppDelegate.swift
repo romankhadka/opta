@@ -11,11 +11,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let recencyHistory = WindowRecencyHistory()
     private var keyboardEventTap: KeyboardEventTap?
     private var statusMenuController: StatusMenuController?
+    private let currentApplicationShortcut = CurrentApplicationShortcutController(
+        store: UserDefaultsCurrentApplicationShortcutStore()
+    )
     private lazy var cycler = WindowCycler(provider: windowProvider, recencyHistory: recencyHistory)
     private lazy var coordinator = SwitcherCoordinator(cycler: cycler)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusMenuController = StatusMenuController()
+        statusMenuController = StatusMenuController(
+            currentApplicationShortcutController: currentApplicationShortcut,
+            onCurrentApplicationShortcutChanged: { [weak self] isEnabled in
+                self?.keyboardEventTap?.setCurrentApplicationShortcutEnabled(isEnabled)
+            }
+        )
         let keyboardPermissionState = PermissionManager.requestKeyboardCapturePermissions()
         PermissionManager.requestScreenRecordingPermissionIfNeeded()
 
@@ -33,8 +41,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             onModifierRelease: { [weak self] in
                 self?.commitSelection()
+            },
+            onCancel: { [weak self] in
+                self?.cancelSelection()
             }
         )
+        eventTap.setCurrentApplicationShortcutEnabled(currentApplicationShortcut.isEnabled)
 
         keyboardEventTap = eventTap
         if !eventTap.start() {
@@ -71,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func show(session: WindowCycleSession) {
         guard !session.windows.isEmpty else {
             overlayController.hide()
+            keyboardEventTap?.setSessionActive(false)
             return
         }
 
@@ -84,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.commitSelection()
             }
         )
+        keyboardEventTap?.setSessionActive(true)
     }
 
     private func select(windowID: UInt32) {
@@ -95,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func commitSelection() {
+        keyboardEventTap?.setSessionActive(false)
         let selectedWindow = coordinator.release()
         overlayController.hide()
 
@@ -108,5 +123,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             recencyHistory.record(windowID: selectedWindow.id)
         }
+    }
+
+    private func cancelSelection() {
+        keyboardEventTap?.setSessionActive(false)
+        coordinator.cancel()
+        overlayController.hide()
     }
 }

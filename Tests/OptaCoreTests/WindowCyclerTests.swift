@@ -170,6 +170,24 @@ struct WindowCyclerTests {
         #expect(secondPress.selectedWindow?.id == 2)
     }
 
+    @Test("cancelling a session clears it without selecting a window")
+    func cancellingClearsSessionWithoutSelecting() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Current"),
+                window(id: 2, processIdentifier: 101, title: "Previous"),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider)
+        let coordinator = SwitcherCoordinator(cycler: cycler)
+
+        _ = coordinator.press(scope: .allApplications)
+        coordinator.cancel()
+
+        #expect(coordinator.activeSession == nil)
+        #expect(coordinator.release() == nil)
+    }
+
     @Test("selecting a window updates the active coordinator session")
     func selectingWindowUpdatesActiveCoordinatorSession() {
         let provider = StubWindowProvider(

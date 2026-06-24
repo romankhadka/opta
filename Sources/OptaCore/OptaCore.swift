@@ -178,6 +178,11 @@ public final class SwitcherCoordinator {
 
         return activeSession?.selectedWindow
     }
+
+    public func cancel() {
+        activeScope = nil
+        activeSession = nil
+    }
 }
 
 private extension Array where Element == WindowSnapshot {

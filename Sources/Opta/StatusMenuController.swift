@@ -5,15 +5,24 @@ import OptaCore
 final class StatusMenuController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let launchAtLoginController: LaunchAtLoginController
+    private let currentApplicationShortcutController: CurrentApplicationShortcutController
+    private let onCurrentApplicationShortcutChanged: (Bool) -> Void
     private var launchAtLoginItem: NSMenuItem?
+    private var currentApplicationShortcutItem: NSMenuItem?
 
     init(
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController(
             manager: ServiceManagementLaunchAtLoginManager()
-        )
+        ),
+        currentApplicationShortcutController: CurrentApplicationShortcutController = CurrentApplicationShortcutController(
+            store: UserDefaultsCurrentApplicationShortcutStore()
+        ),
+        onCurrentApplicationShortcutChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.launchAtLoginController = launchAtLoginController
+        self.currentApplicationShortcutController = currentApplicationShortcutController
+        self.onCurrentApplicationShortcutChanged = onCurrentApplicationShortcutChanged
         super.init()
 
         statusItem.button?.image = NSImage(systemSymbolName: "rectangle.2.swap", accessibilityDescription: "Opta")
@@ -28,6 +37,15 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let titleItem = NSMenuItem(title: "Opta", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         menu.addItem(titleItem)
+        menu.addItem(.separator())
+
+        let currentApplicationShortcutItem = NSMenuItem(
+            title: "Cycle Current App (⌥`)",
+            action: #selector(toggleCurrentApplicationShortcut),
+            keyEquivalent: ""
+        )
+        self.currentApplicationShortcutItem = currentApplicationShortcutItem
+        menu.addItem(currentApplicationShortcutItem)
         menu.addItem(.separator())
 
         let launchAtLoginItem = NSMenuItem(
@@ -76,12 +94,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
 
         refreshLaunchAtLoginMenuItem()
+        refreshCurrentApplicationShortcutMenuItem()
 
         return menu
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         refreshLaunchAtLoginMenuItem()
+        refreshCurrentApplicationShortcutMenuItem()
     }
 
     @objc
@@ -96,6 +116,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         } catch {
             showLaunchAtLoginError(error)
         }
+    }
+
+    @objc
+    private func toggleCurrentApplicationShortcut() {
+        currentApplicationShortcutController.toggle()
+        refreshCurrentApplicationShortcutMenuItem()
+        onCurrentApplicationShortcutChanged(currentApplicationShortcutController.isEnabled)
     }
 
     @objc
@@ -145,6 +172,18 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             launchAtLoginItem.isEnabled = false
             launchAtLoginItem.toolTip = "Launch at Login is unavailable for this app bundle."
         }
+    }
+
+    private func refreshCurrentApplicationShortcutMenuItem() {
+        guard let currentApplicationShortcutItem else {
+            return
+        }
+
+        currentApplicationShortcutItem.title = currentApplicationShortcutController.checkboxTitle
+        currentApplicationShortcutItem.state = .off
+        currentApplicationShortcutItem.toolTip = currentApplicationShortcutController.isEnabled
+            ? "Turn off if you type grave-accented characters with ⌥`."
+            : nil
     }
 
     private func showLaunchAtLoginError(_ error: Error) {
