@@ -76,6 +76,32 @@ struct WindowCyclerTests {
         #expect(session.selectedWindow?.id == 2)
     }
 
+    @Test("new frontmost windows outrank older recorded windows")
+    func newFrontmostWindowsOutrankOlderRecordedWindows() {
+        let provider = MutableWindowProvider(
+            windows: [
+                window(id: 2, processIdentifier: 100, title: "Older Ghostty Window", recencyRank: 10),
+                window(id: 3, processIdentifier: 101, title: "Older Browser Window", recencyRank: 20),
+            ]
+        )
+        let recencyHistory = WindowRecencyHistory()
+        recencyHistory.record(windowID: 2)
+        recencyHistory.record(windowID: 3)
+        let cycler = WindowCycler(provider: provider, recencyHistory: recencyHistory)
+
+        _ = cycler.start(scope: .allApplications)
+        provider.windows = [
+            window(id: 1, processIdentifier: 100, title: "New Ghostty Window", recencyRank: 0),
+            window(id: 2, processIdentifier: 100, title: "Older Ghostty Window", recencyRank: 10),
+            window(id: 3, processIdentifier: 101, title: "Older Browser Window", recencyRank: 20),
+        ]
+
+        let session = cycler.start(scope: .allApplications)
+
+        #expect(session.windows.map(\.id) == [1, 3, 2])
+        #expect(session.selectedWindow?.id == 1)
+    }
+
     @Test("advancing a session wraps through available windows")
     func advancesAndWraps() {
         var session = WindowCycleSession(
@@ -230,6 +256,18 @@ struct WindowCyclerTests {
 
 private struct StubWindowProvider: WindowProviding {
     let windows: [WindowSnapshot]
+
+    func availableWindows() -> [WindowSnapshot] {
+        windows
+    }
+}
+
+private final class MutableWindowProvider: WindowProviding {
+    var windows: [WindowSnapshot]
+
+    init(windows: [WindowSnapshot]) {
+        self.windows = windows
+    }
 
     func availableWindows() -> [WindowSnapshot] {
         windows
