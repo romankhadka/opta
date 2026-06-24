@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             onModifierRelease: { [weak self] in
                 self?.commitSelection()
+            },
+            onCancel: { [weak self] in
+                self?.cancelSelection()
             }
         )
 
@@ -62,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func show(session: WindowCycleSession) {
         guard !session.windows.isEmpty else {
             overlayController.hide()
+            keyboardEventTap?.setSessionActive(false)
             return
         }
 
@@ -75,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.commitSelection()
             }
         )
+        keyboardEventTap?.setSessionActive(true)
     }
 
     private func select(windowID: UInt32) {
@@ -86,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func commitSelection() {
+        keyboardEventTap?.setSessionActive(false)
         let selectedWindow = coordinator.release()
         overlayController.hide()
 
@@ -94,5 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         windowActivator.activate(selectedWindow)
+    }
+
+    private func cancelSelection() {
+        keyboardEventTap?.setSessionActive(false)
+        coordinator.cancel()
+        overlayController.hide()
     }
 }
