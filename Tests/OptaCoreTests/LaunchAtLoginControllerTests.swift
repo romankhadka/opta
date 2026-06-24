@@ -48,6 +48,14 @@ struct LaunchAtLoginControllerTests {
 
         #expect(controller.menuState == .requiresApproval)
     }
+
+    @Test("menu states include an explicit checkbox title")
+    func menuStatesIncludeExplicitCheckboxTitle() {
+        #expect(LaunchAtLoginMenuState.off.checkboxTitle == "☐ Launch at Login")
+        #expect(LaunchAtLoginMenuState.on.checkboxTitle == "☑ Launch at Login")
+        #expect(LaunchAtLoginMenuState.requiresApproval.checkboxTitle == "☐ Launch at Login")
+        #expect(LaunchAtLoginMenuState.unavailable.checkboxTitle == "☐ Launch at Login")
+    }
 }
 
 private final class StubLaunchAtLoginManager: LaunchAtLoginManaging {

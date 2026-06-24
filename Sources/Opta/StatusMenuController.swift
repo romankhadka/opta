@@ -116,21 +116,20 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             return
         }
 
+        launchAtLoginItem.title = launchAtLoginController.menuState.checkboxTitle
+        launchAtLoginItem.state = .off
+
         switch launchAtLoginController.menuState {
         case .off:
-            launchAtLoginItem.state = .off
             launchAtLoginItem.isEnabled = true
             launchAtLoginItem.toolTip = nil
         case .on:
-            launchAtLoginItem.state = .on
             launchAtLoginItem.isEnabled = true
             launchAtLoginItem.toolTip = nil
         case .requiresApproval:
-            launchAtLoginItem.state = .mixed
             launchAtLoginItem.isEnabled = true
             launchAtLoginItem.toolTip = "Approve Opta in System Settings > General > Login Items."
         case .unavailable:
-            launchAtLoginItem.state = .off
             launchAtLoginItem.isEnabled = false
             launchAtLoginItem.toolTip = "Launch at Login is unavailable for this app bundle."
         }
