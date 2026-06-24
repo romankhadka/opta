@@ -56,6 +56,13 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         )
         menu.addItem(
             NSMenuItem(
+                title: "Open Input Monitoring Settings",
+                action: #selector(openInputMonitoringSettings),
+                keyEquivalent: ""
+            )
+        )
+        menu.addItem(
+            NSMenuItem(
                 title: "Open Screen Recording Settings",
                 action: #selector(openScreenRecordingSettings),
                 keyEquivalent: ""
@@ -99,6 +106,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc
     private func openAccessibilitySettings() {
         PermissionManager.openAccessibilitySettings()
+    }
+
+    @objc
+    private func openInputMonitoringSettings() {
+        PermissionManager.openInputMonitoringSettings()
     }
 
     @objc

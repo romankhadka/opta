@@ -16,7 +16,8 @@ The switcher shows live window previews when Screen Recording permission is avai
 
 - macOS 14 or newer
 - Xcode 26 or newer, or the matching Command Line Tools
-- Accessibility permission for global keyboard capture and window activation
+- Accessibility permission for window activation
+- Input Monitoring permission for global keyboard capture
 - Screen Recording permission for window previews
 
 ## Build
@@ -31,12 +32,13 @@ The build script creates `.build/release/Opta.app` and ad-hoc signs it for local
 
 ## Permissions
 
-On first launch, Opta asks macOS for Accessibility and Screen Recording access. If the prompts do not appear, use the menu bar icon:
+On first launch, Opta asks macOS for Accessibility, Input Monitoring, and Screen Recording access. If the prompts do not appear, use the menu bar icon:
 
 - Open Accessibility Settings
+- Open Input Monitoring Settings
 - Open Screen Recording Settings
 
-After enabling either permission, relaunch Opta so macOS applies the change.
+After enabling any permission, relaunch Opta so macOS applies the change.
 
 ## Launch at Login
 
@@ -52,6 +54,7 @@ Opta is intentionally small and native. It uses:
 - `ScreenCaptureKit` to capture window preview images.
 - `SMAppService.mainApp` to register the app as a launch-at-login item.
 - Accessibility APIs to focus and raise the selected window.
+- IOKit HID access to request Input Monitoring for keyboard capture.
 - A session event tap to intercept `Option` + `Tab` and `Option` + `` ` ``.
 
 Windows are ordered by the system window list's front-to-back order, which

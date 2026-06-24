@@ -13,8 +13,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusMenuController = StatusMenuController()
-        _ = PermissionManager.requestAccessibilityPermission()
+        let keyboardPermissionState = PermissionManager.requestKeyboardCapturePermissions()
         PermissionManager.requestScreenRecordingPermissionIfNeeded()
+
+        guard keyboardPermissionState.canCaptureKeyboard else {
+            PermissionManager.showKeyboardCaptureHelp(permissionState: keyboardPermissionState)
+            return
+        }
 
         let eventTap = KeyboardEventTap(
             onCycleAllApplications: { [weak self] direction in
@@ -30,7 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         keyboardEventTap = eventTap
         if !eventTap.start() {
-            PermissionManager.showAccessibilityHelp()
+            PermissionManager.showKeyboardCaptureHelp(
+                permissionState: PermissionManager.keyboardCapturePermissionState
+            )
         }
     }
 
