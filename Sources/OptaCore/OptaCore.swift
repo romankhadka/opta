@@ -20,6 +20,7 @@ public struct WindowSnapshot: Equatable, Identifiable, Sendable {
     public let isOnscreen: Bool
     public let layer: Int
     public let bounds: WindowBounds
+    public let recencyRank: Int
 
     public init(
         id: UInt32,
@@ -28,7 +29,8 @@ public struct WindowSnapshot: Equatable, Identifiable, Sendable {
         title: String,
         isOnscreen: Bool,
         layer: Int,
-        bounds: WindowBounds
+        bounds: WindowBounds,
+        recencyRank: Int
     ) {
         self.id = id
         self.processIdentifier = processIdentifier
@@ -37,6 +39,7 @@ public struct WindowSnapshot: Equatable, Identifiable, Sendable {
         self.isOnscreen = isOnscreen
         self.layer = layer
         self.bounds = bounds
+        self.recencyRank = recencyRank
     }
 
     public var displayTitle: String {
@@ -51,6 +54,11 @@ public protocol WindowProviding {
 public enum WindowCycleScope: Equatable, Sendable {
     case allApplications
     case currentApplication(processIdentifier: Int32)
+}
+
+public enum WindowCycleDirection: Equatable, Sendable {
+    case forward
+    case backward
 }
 
 public struct WindowCycleSession: Equatable, Sendable {
@@ -70,12 +78,17 @@ public struct WindowCycleSession: Equatable, Sendable {
         return windows[selectedIndex]
     }
 
-    public mutating func advance() {
+    public mutating func advance(_ direction: WindowCycleDirection = .forward) {
         guard !windows.isEmpty else {
             return
         }
 
-        selectedIndex = (selectedIndex + 1) % windows.count
+        switch direction {
+        case .forward:
+            selectedIndex = (selectedIndex + 1) % windows.count
+        case .backward:
+            selectedIndex = (selectedIndex - 1 + windows.count) % windows.count
+        }
     }
 }
 
@@ -87,7 +100,7 @@ public final class WindowCycler {
     }
 
     public func start(scope: WindowCycleScope) -> WindowCycleSession {
-        let windows = provider.availableWindows()
+        let windows = provider.availableWindows().stableSortedByRecentUse()
             .filter(\.isCyclable)
             .filter { window in
                 switch scope {
@@ -113,16 +126,19 @@ public final class SwitcherCoordinator {
     }
 
     @discardableResult
-    public func press(scope: WindowCycleScope) -> WindowCycleSession {
+    public func press(
+        scope: WindowCycleScope,
+        direction: WindowCycleDirection = .forward
+    ) -> WindowCycleSession {
         if activeScope == scope, var session = activeSession {
-            session.advance()
+            session.advance(direction)
             activeSession = session
             return session
         }
 
         var session = cycler.start(scope: scope)
         if session.windows.count > 1 {
-            session.advance()
+            session.advance(direction)
         }
 
         activeScope = scope
@@ -137,6 +153,20 @@ public final class SwitcherCoordinator {
         }
 
         return activeSession?.selectedWindow
+    }
+}
+
+private extension Array where Element == WindowSnapshot {
+    func stableSortedByRecentUse() -> [WindowSnapshot] {
+        enumerated()
+            .sorted { firstWindow, secondWindow in
+                if firstWindow.element.recencyRank == secondWindow.element.recencyRank {
+                    firstWindow.offset < secondWindow.offset
+                } else {
+                    firstWindow.element.recencyRank < secondWindow.element.recencyRank
+                }
+            }
+            .map(\.element)
     }
 }
 

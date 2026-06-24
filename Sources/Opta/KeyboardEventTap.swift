@@ -1,19 +1,20 @@
 import ApplicationServices
+import OptaCore
 
 final class KeyboardEventTap: @unchecked Sendable {
     private static let tabKeyCode: Int64 = 48
     private static let graveKeyCode: Int64 = 50
 
-    private let onCycleAllApplications: @MainActor @Sendable () -> Void
-    private let onCycleCurrentApplication: @MainActor @Sendable () -> Void
+    private let onCycleAllApplications: @MainActor @Sendable (WindowCycleDirection) -> Void
+    private let onCycleCurrentApplication: @MainActor @Sendable (WindowCycleDirection) -> Void
     private let onModifierRelease: @MainActor @Sendable () -> Void
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var optionWasDown = false
 
     init(
-        onCycleAllApplications: @escaping @MainActor @Sendable () -> Void,
-        onCycleCurrentApplication: @escaping @MainActor @Sendable () -> Void,
+        onCycleAllApplications: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
+        onCycleCurrentApplication: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onModifierRelease: @escaping @MainActor @Sendable () -> Void
     ) {
         self.onCycleAllApplications = onCycleAllApplications
@@ -120,16 +121,17 @@ final class KeyboardEventTap: @unchecked Sendable {
 
         optionWasDown = true
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let direction: WindowCycleDirection = flags.contains(.maskShift) ? .backward : .forward
 
         switch keyCode {
         case Self.tabKeyCode:
-            Task { @MainActor [onCycleAllApplications] in
-                onCycleAllApplications()
+            Task { @MainActor [onCycleAllApplications, direction] in
+                onCycleAllApplications(direction)
             }
             return nil
         case Self.graveKeyCode:
-            Task { @MainActor [onCycleCurrentApplication] in
-                onCycleCurrentApplication()
+            Task { @MainActor [onCycleCurrentApplication, direction] in
+                onCycleCurrentApplication(direction)
             }
             return nil
         default:

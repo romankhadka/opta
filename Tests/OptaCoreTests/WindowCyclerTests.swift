@@ -40,6 +40,23 @@ struct WindowCyclerTests {
         #expect(session.selectedWindow?.id == 2)
     }
 
+    @Test("orders windows by most recent use")
+    func ordersWindowsByMostRecentUse() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Older", recencyRank: 20),
+                window(id: 2, processIdentifier: 101, title: "Current", recencyRank: 0),
+                window(id: 3, processIdentifier: 102, title: "Previous", recencyRank: 10),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider)
+
+        let session = cycler.start(scope: .allApplications)
+
+        #expect(session.windows.map(\.id) == [2, 3, 1])
+        #expect(session.selectedWindow?.id == 2)
+    }
+
     @Test("advancing a session wraps through available windows")
     func advancesAndWraps() {
         var session = WindowCycleSession(
@@ -54,6 +71,23 @@ struct WindowCyclerTests {
 
         session.advance()
         #expect(session.selectedWindow?.id == 1)
+    }
+
+    @Test("reversing a session wraps backward through available windows")
+    func reversesAndWraps() {
+        var session = WindowCycleSession(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "One"),
+                window(id: 2, processIdentifier: 101, title: "Two"),
+                window(id: 3, processIdentifier: 102, title: "Three"),
+            ]
+        )
+
+        session.advance(.backward)
+        #expect(session.selectedWindow?.id == 3)
+
+        session.advance(.backward)
+        #expect(session.selectedWindow?.id == 2)
     }
 
     @Test("the first hotkey press selects the next window")
@@ -78,6 +112,25 @@ struct WindowCyclerTests {
         #expect(selectedWindow?.id == 3)
         #expect(coordinator.activeSession == nil)
     }
+
+    @Test("the first backward hotkey press selects the last window")
+    func firstBackwardHotkeyPressSelectsLastWindow() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Current"),
+                window(id: 2, processIdentifier: 101, title: "Previous"),
+                window(id: 3, processIdentifier: 102, title: "Older"),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider)
+        let coordinator = SwitcherCoordinator(cycler: cycler)
+
+        let firstPress = coordinator.press(scope: .allApplications, direction: .backward)
+        #expect(firstPress.selectedWindow?.id == 3)
+
+        let secondPress = coordinator.press(scope: .allApplications, direction: .backward)
+        #expect(secondPress.selectedWindow?.id == 2)
+    }
 }
 
 private struct StubWindowProvider: WindowProviding {
@@ -96,7 +149,8 @@ private func window(
     isOnscreen: Bool = true,
     layer: Int = 0,
     width: Double = 800,
-    height: Double = 600
+    height: Double = 600,
+    recencyRank: Int = 0
 ) -> WindowSnapshot {
     WindowSnapshot(
         id: id,
@@ -105,6 +159,7 @@ private func window(
         title: title,
         isOnscreen: isOnscreen,
         layer: layer,
-        bounds: WindowBounds(x: 0, y: 0, width: width, height: height)
+        bounds: WindowBounds(x: 0, y: 0, width: width, height: height),
+        recencyRank: recencyRank
     )
 }

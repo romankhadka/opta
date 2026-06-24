@@ -11,7 +11,7 @@ struct SystemWindowProvider: WindowProviding {
 
         let ownProcessIdentifier = ProcessInfo.processInfo.processIdentifier
 
-        return windowInfo.compactMap { rawWindow in
+        return windowInfo.enumerated().compactMap { recencyRank, rawWindow in
             guard
                 let windowNumber = number(rawWindow[kCGWindowNumber as String])?.uint32Value,
                 let processIdentifier = number(rawWindow[kCGWindowOwnerPID as String])?.int32Value,
@@ -42,7 +42,8 @@ struct SystemWindowProvider: WindowProviding {
                     y: bounds.origin.y,
                     width: bounds.width,
                     height: bounds.height
-                )
+                ),
+                recencyRank: recencyRank
             )
         }
     }

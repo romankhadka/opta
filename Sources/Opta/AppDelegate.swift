@@ -17,11 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         PermissionManager.requestScreenRecordingPermissionIfNeeded()
 
         let eventTap = KeyboardEventTap(
-            onCycleAllApplications: { [weak self] in
-                self?.cycleAllApplications()
+            onCycleAllApplications: { [weak self] direction in
+                self?.cycleAllApplications(direction: direction)
             },
-            onCycleCurrentApplication: { [weak self] in
-                self?.cycleCurrentApplication()
+            onCycleCurrentApplication: { [weak self] direction in
+                self?.cycleCurrentApplication(direction: direction)
             },
             onModifierRelease: { [weak self] in
                 self?.commitSelection()
@@ -34,19 +34,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func cycleAllApplications() {
-        let session = coordinator.press(scope: .allApplications)
+    private func cycleAllApplications(direction: WindowCycleDirection) {
+        let session = coordinator.press(scope: .allApplications, direction: direction)
         show(session: session)
     }
 
-    private func cycleCurrentApplication() {
+    private func cycleCurrentApplication(direction: WindowCycleDirection) {
         guard let frontmostProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
             overlayController.hide()
             return
         }
 
         let session = coordinator.press(
-            scope: .currentApplication(processIdentifier: frontmostProcessIdentifier)
+            scope: .currentApplication(processIdentifier: frontmostProcessIdentifier),
+            direction: direction
         )
         show(session: session)
     }

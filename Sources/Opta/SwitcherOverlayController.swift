@@ -48,7 +48,7 @@ final class SwitcherOverlayController {
 
     private func makePanel(contentView: NSView) {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 920, height: 310),
+            contentRect: NSRect(x: 0, y: 0, width: 1068, height: 198),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -85,12 +85,18 @@ final class SwitcherOverlayController {
             return
         }
 
-        let tileWidth: CGFloat = 184
-        let horizontalPadding: CGFloat = 44
-        let maxVisibleTiles: CGFloat = 5
-        let visibleTiles = min(CGFloat(max(itemCount, 1)), maxVisibleTiles)
-        let width = min(980, horizontalPadding * 2 + visibleTiles * tileWidth)
-        let height: CGFloat = 310
+        let tileWidth: CGFloat = 160
+        let tileHeight: CGFloat = 148
+        let tileSpacing: CGFloat = 12
+        let panelPadding: CGFloat = 24
+        let columnCount = min(max(itemCount, 1), 6)
+        let rowCount = Int(ceil(Double(max(itemCount, 1)) / 6.0))
+        let width = panelPadding * 2 +
+            CGFloat(columnCount) * tileWidth +
+            CGFloat(max(columnCount - 1, 0)) * tileSpacing
+        let height = panelPadding * 2 +
+            CGFloat(rowCount) * tileHeight +
+            CGFloat(max(rowCount - 1, 0)) * tileSpacing
 
         let screen = screenContainingMouse() ?? NSScreen.main ?? NSScreen.screens.first
         let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
@@ -124,6 +130,14 @@ private struct SwitcherOverlayView: View {
     let items: [SwitcherDisplayItem]
     let selectedWindowID: UInt32?
 
+    private var columns: [GridItem] {
+        let columnCount = min(max(items.count, 1), 6)
+        return Array(
+            repeating: GridItem(.fixed(160), spacing: 12, alignment: .top),
+            count: columnCount
+        )
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -134,30 +148,16 @@ private struct SwitcherOverlayView: View {
                 )
                 .shadow(color: .black.opacity(0.38), radius: 32, y: 18)
 
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        ForEach(items) { item in
-                            SwitcherTileView(
-                                item: item,
-                                isSelected: item.id == selectedWindowID
-                            )
-                            .id(item.id)
-                        }
-                    }
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 26)
-                }
-                .onChange(of: selectedWindowID) { _, newID in
-                    guard let newID else {
-                        return
-                    }
-
-                    withAnimation(.snappy(duration: 0.14)) {
-                        proxy.scrollTo(newID, anchor: .center)
-                    }
+            LazyVGrid(columns: columns, alignment: .center, spacing: 12) {
+                ForEach(items) { item in
+                    SwitcherTileView(
+                        item: item,
+                        isSelected: item.id == selectedWindowID
+                    )
+                    .id(item.id)
                 }
             }
+            .padding(24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -168,21 +168,21 @@ private struct SwitcherTileView: View {
     let isSelected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             preview
-                .frame(width: 152, height: 104)
+                .frame(width: 138, height: 86)
                 .background(Color.black.opacity(0.28))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(Color.white.opacity(0.10), lineWidth: 1)
                 )
 
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
                 icon
-                    .frame(width: 24, height: 24)
+                    .frame(width: 22, height: 22)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(item.window.displayTitle)
                         .font(.system(size: 12, weight: .semibold, design: .default))
                         .lineLimit(1)
@@ -195,17 +195,20 @@ private struct SwitcherTileView: View {
                 }
             }
         }
-        .padding(12)
-        .frame(width: 176, height: 206, alignment: .topLeading)
+        .padding(10)
+        .frame(width: 160, height: 148, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.18) : Color.white.opacity(0.07))
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.20) : Color.white.opacity(0.07))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .stroke(isSelected ? Color(red: 0.92, green: 0.78, blue: 0.40) : Color.white.opacity(0.10), lineWidth: isSelected ? 2 : 1)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(
+                    isSelected ? Color(red: 0.62, green: 0.64, blue: 0.66) : Color.white.opacity(0.10),
+                    lineWidth: isSelected ? 2 : 1
+                )
         )
-        .scaleEffect(isSelected ? 1.04 : 1.0)
+        .scaleEffect(isSelected ? 1.025 : 1.0)
         .animation(.snappy(duration: 0.12), value: isSelected)
     }
 
@@ -229,7 +232,7 @@ private struct SwitcherTileView: View {
                 Image(nsImage: icon)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 52, height: 52)
+                    .frame(width: 48, height: 48)
             }
         } else {
             LinearGradient(
@@ -250,7 +253,7 @@ private struct SwitcherTileView: View {
                 .resizable()
                 .scaledToFit()
         } else {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .fill(Color.white.opacity(0.18))
         }
     }

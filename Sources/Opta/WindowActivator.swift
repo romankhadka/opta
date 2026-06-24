@@ -10,21 +10,30 @@ struct WindowActivator {
             return false
         }
 
-        application.activate(options: [])
-
         let accessibilityApplication = AXUIElementCreateApplication(processIdentifier)
         guard let accessibilityWindow = findWindow(number: window.id, in: accessibilityApplication) else {
+            application.activate(options: [.activateAllWindows])
             return true
         }
 
-        AXUIElementSetAttributeValue(
-            accessibilityApplication,
-            kAXFocusedWindowAttribute as CFString,
-            accessibilityWindow
-        )
+        application.activate(options: [.activateAllWindows])
+        focus(accessibilityWindow, in: accessibilityApplication)
         AXUIElementPerformAction(accessibilityWindow, kAXRaiseAction as CFString)
 
         return true
+    }
+
+    private func focus(_ window: AXUIElement, in application: AXUIElement) {
+        AXUIElementSetAttributeValue(
+            application,
+            kAXMainWindowAttribute as CFString,
+            window
+        )
+        AXUIElementSetAttributeValue(
+            application,
+            kAXFocusedWindowAttribute as CFString,
+            window
+        )
     }
 
     private func findWindow(number windowNumber: UInt32, in application: AXUIElement) -> AXUIElement? {
