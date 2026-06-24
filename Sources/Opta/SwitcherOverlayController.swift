@@ -10,6 +10,7 @@ final class SwitcherOverlayController {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<SwitcherOverlayView>?
     private var currentSession: WindowCycleSession?
+    private var refreshedWindowIDs: [UInt32] = []
     private var previewRefreshTask: Task<Void, Never>?
     private var onHoverWindow: WindowInteraction = { _ in }
     private var onClickWindow: WindowInteraction = { _ in }
@@ -23,7 +24,16 @@ final class SwitcherOverlayController {
         self.onClickWindow = onClickWindow
         currentSession = session
         render(session: session)
-        refreshPreviews(for: session.windows)
+
+        // Only (re)capture when the window set changes, i.e. a new session is
+        // starting. Advancing the selection within a session reuses the
+        // freshly captured previews instead of restarting capture each press.
+        let windowIDs = session.windows.map(\.id)
+        if windowIDs != refreshedWindowIDs {
+            refreshedWindowIDs = windowIDs
+            refreshPreviews(for: session.windows)
+        }
+
         panel?.orderFrontRegardless()
     }
 
@@ -34,8 +44,13 @@ final class SwitcherOverlayController {
 
     func hide() {
         currentSession = nil
+        refreshedWindowIDs = []
         previewRefreshTask?.cancel()
         previewRefreshTask = nil
+        // Drop cached previews so the next session captures live images rather
+        // than reusing stale snapshots (or, after window IDs are recycled by the
+        // system, another window's image). Also bounds cache growth over time.
+        previewProvider.invalidate()
         panel?.orderOut(nil)
     }
 

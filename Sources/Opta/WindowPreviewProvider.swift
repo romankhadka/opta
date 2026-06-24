@@ -14,6 +14,10 @@ final class WindowPreviewProvider {
         NSRunningApplication(processIdentifier: pid_t(window.processIdentifier))?.icon
     }
 
+    func invalidate() {
+        cachedPreviews.removeAll()
+    }
+
     func refreshPreviews(for windows: [WindowSnapshot]) async -> Bool {
         let missingWindows = windows.filter { cachedPreviews[$0.id] == nil }
         guard !missingWindows.isEmpty else {
