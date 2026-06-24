@@ -1,0 +1,148 @@
+import ApplicationServices
+
+final class KeyboardEventTap: @unchecked Sendable {
+    private static let tabKeyCode: Int64 = 48
+    private static let graveKeyCode: Int64 = 50
+
+    private let onCycleAllApplications: @MainActor @Sendable () -> Void
+    private let onCycleCurrentApplication: @MainActor @Sendable () -> Void
+    private let onModifierRelease: @MainActor @Sendable () -> Void
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var optionWasDown = false
+
+    init(
+        onCycleAllApplications: @escaping @MainActor @Sendable () -> Void,
+        onCycleCurrentApplication: @escaping @MainActor @Sendable () -> Void,
+        onModifierRelease: @escaping @MainActor @Sendable () -> Void
+    ) {
+        self.onCycleAllApplications = onCycleAllApplications
+        self.onCycleCurrentApplication = onCycleCurrentApplication
+        self.onModifierRelease = onModifierRelease
+    }
+
+    deinit {
+        stop()
+    }
+
+    func start() -> Bool {
+        let eventMask =
+            (1 << CGEventType.keyDown.rawValue) |
+            (1 << CGEventType.flagsChanged.rawValue) |
+            (1 << CGEventType.tapDisabledByTimeout.rawValue) |
+            (1 << CGEventType.tapDisabledByUserInput.rawValue)
+
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        guard let eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: keyboardEventTapCallback,
+            userInfo: context
+        ) else {
+            return false
+        }
+
+        guard let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0) else {
+            return false
+        }
+
+        self.eventTap = eventTap
+        self.runLoopSource = runLoopSource
+
+        CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        CGEvent.tapEnable(tap: eventTap, enable: true)
+
+        return true
+    }
+
+    func stop() {
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+
+        if let eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+        }
+
+        runLoopSource = nil
+        eventTap = nil
+    }
+
+    fileprivate func handle(
+        proxy: CGEventTapProxy,
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let eventTap {
+                CGEvent.tapEnable(tap: eventTap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
+        if type == .flagsChanged {
+            return handleFlagsChanged(event)
+        }
+
+        guard type == .keyDown else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        return handleKeyDown(event)
+    }
+
+    private func handleFlagsChanged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let optionIsDown = event.flags.contains(.maskAlternate)
+        if optionWasDown && !optionIsDown {
+            optionWasDown = false
+            Task { @MainActor [onModifierRelease] in
+                onModifierRelease()
+            }
+        } else if optionIsDown {
+            optionWasDown = true
+        }
+
+        return Unmanaged.passUnretained(event)
+    }
+
+    private func handleKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let flags = event.flags
+        guard flags.contains(.maskAlternate) else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        let disallowedFlags: CGEventFlags = [.maskCommand, .maskControl]
+        guard flags.intersection(disallowedFlags).isEmpty else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        optionWasDown = true
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+
+        switch keyCode {
+        case Self.tabKeyCode:
+            Task { @MainActor [onCycleAllApplications] in
+                onCycleAllApplications()
+            }
+            return nil
+        case Self.graveKeyCode:
+            Task { @MainActor [onCycleCurrentApplication] in
+                onCycleCurrentApplication()
+            }
+            return nil
+        default:
+            return Unmanaged.passUnretained(event)
+        }
+    }
+}
+
+private let keyboardEventTapCallback: CGEventTapCallBack = { proxy, type, event, userInfo in
+    guard let userInfo else {
+        return Unmanaged.passUnretained(event)
+    }
+
+    let eventTap = Unmanaged<KeyboardEventTap>.fromOpaque(userInfo).takeUnretainedValue()
+    return eventTap.handle(proxy: proxy, type: type, event: event)
+}
