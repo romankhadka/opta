@@ -16,6 +16,7 @@ final class KeyboardEventTap: @unchecked Sendable {
     // Written from the main actor, read on the event-tap callback; both run on
     // the main run loop, so the @unchecked Sendable access is single-threaded.
     private var sessionIsActive = false
+    private var currentApplicationShortcutEnabled = true
 
     init(
         onCycleAllApplications: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
@@ -31,6 +32,10 @@ final class KeyboardEventTap: @unchecked Sendable {
 
     func setSessionActive(_ active: Bool) {
         sessionIsActive = active
+    }
+
+    func setCurrentApplicationShortcutEnabled(_ enabled: Bool) {
+        currentApplicationShortcutEnabled = enabled
     }
 
     deinit {
@@ -157,6 +162,12 @@ final class KeyboardEventTap: @unchecked Sendable {
             }
             return nil
         case Self.graveKeyCode:
+            // When disabled, let ⌥` through so the grave-accent dead key keeps
+            // working for typing à/è/ì/ò/ù.
+            guard currentApplicationShortcutEnabled else {
+                return Unmanaged.passUnretained(event)
+            }
+
             Task { @MainActor [onCycleCurrentApplication, direction] in
                 onCycleCurrentApplication(direction)
             }

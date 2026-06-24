@@ -8,11 +8,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlayController = SwitcherOverlayController()
     private var keyboardEventTap: KeyboardEventTap?
     private var statusMenuController: StatusMenuController?
+    private let currentApplicationShortcut = CurrentApplicationShortcutController(
+        store: UserDefaultsCurrentApplicationShortcutStore()
+    )
     private lazy var cycler = WindowCycler(provider: windowProvider)
     private lazy var coordinator = SwitcherCoordinator(cycler: cycler)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusMenuController = StatusMenuController()
+        statusMenuController = StatusMenuController(
+            currentApplicationShortcutController: currentApplicationShortcut,
+            onCurrentApplicationShortcutChanged: { [weak self] isEnabled in
+                self?.keyboardEventTap?.setCurrentApplicationShortcutEnabled(isEnabled)
+            }
+        )
         let keyboardPermissionState = PermissionManager.requestKeyboardCapturePermissions()
         PermissionManager.requestScreenRecordingPermissionIfNeeded()
 
@@ -35,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.cancelSelection()
             }
         )
+        eventTap.setCurrentApplicationShortcutEnabled(currentApplicationShortcut.isEnabled)
 
         keyboardEventTap = eventTap
         if !eventTap.start() {
