@@ -47,18 +47,12 @@ final class KeyboardEventTap: @unchecked Sendable {
     }
 
     func start() -> Bool {
-        let eventMask =
-            (1 << CGEventType.keyDown.rawValue) |
-            (1 << CGEventType.flagsChanged.rawValue) |
-            (1 << CGEventType.tapDisabledByTimeout.rawValue) |
-            (1 << CGEventType.tapDisabledByUserInput.rawValue)
-
         let context = Unmanaged.passUnretained(self).toOpaque()
         guard let eventTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
-            eventsOfInterest: CGEventMask(eventMask),
+            eventsOfInterest: KeyboardEventMask.keyboardCaptureEvents,
             callback: keyboardEventTapCallback,
             userInfo: context
         ) else {
