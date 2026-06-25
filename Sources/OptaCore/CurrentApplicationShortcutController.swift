@@ -13,10 +13,6 @@ public final class CurrentApplicationShortcutController {
         store.isEnabled
     }
 
-    public var checkboxTitle: String {
-        isEnabled ? "☑ Cycle Current App (⌥`)" : "☐ Cycle Current App (⌥`)"
-    }
-
     public func setEnabled(_ isEnabled: Bool) {
         store.isEnabled = isEnabled
     }

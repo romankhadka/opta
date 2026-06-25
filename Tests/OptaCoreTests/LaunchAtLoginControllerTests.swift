@@ -49,12 +49,15 @@ struct LaunchAtLoginControllerTests {
         #expect(controller.menuState == .requiresApproval)
     }
 
-    @Test("menu states include an explicit checkbox title")
-    func menuStatesIncludeExplicitCheckboxTitle() {
-        #expect(LaunchAtLoginMenuState.off.checkboxTitle == "☐ Launch at Login")
-        #expect(LaunchAtLoginMenuState.on.checkboxTitle == "☑ Launch at Login")
-        #expect(LaunchAtLoginMenuState.requiresApproval.checkboxTitle == "☐ Launch at Login")
-        #expect(LaunchAtLoginMenuState.unavailable.checkboxTitle == "☐ Launch at Login")
+    @Test("menu state mirrors the manager status")
+    func menuStateMirrorsManagerStatus() {
+        #expect(LaunchAtLoginController(manager: StubLaunchAtLoginManager(status: .disabled)).menuState == .off)
+        #expect(LaunchAtLoginController(manager: StubLaunchAtLoginManager(status: .enabled)).menuState == .on)
+        #expect(
+            LaunchAtLoginController(manager: StubLaunchAtLoginManager(status: .requiresApproval)).menuState
+                == .requiresApproval
+        )
+        #expect(LaunchAtLoginController(manager: StubLaunchAtLoginManager(status: .unavailable)).menuState == .unavailable)
     }
 }
 

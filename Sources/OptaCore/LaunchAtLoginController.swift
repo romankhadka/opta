@@ -10,15 +10,6 @@ public enum LaunchAtLoginMenuState: Equatable, Sendable {
     case on
     case requiresApproval
     case unavailable
-
-    public var checkboxTitle: String {
-        switch self {
-        case .on:
-            "☑ Launch at Login"
-        case .off, .requiresApproval, .unavailable:
-            "☐ Launch at Login"
-        }
-    }
 }
 
 public protocol LaunchAtLoginManaging: AnyObject {

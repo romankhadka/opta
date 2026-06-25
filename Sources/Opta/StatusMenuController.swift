@@ -1,8 +1,10 @@
 import AppKit
 import OptaCore
+import OSLog
 
 @MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
+    private let logger = Logger.opta(category: "launch")
     private let statusItem: NSStatusItem
     private let launchAtLoginController: LaunchAtLoginController
     private let currentApplicationShortcutController: CurrentApplicationShortcutController
@@ -106,14 +108,22 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc
     private func toggleLaunchAtLogin() {
+        let stateBeforeToggle = launchAtLoginController.menuState
+        logger.debug("launch toggle begin state=\(String(describing: stateBeforeToggle), privacy: .public)")
+
         do {
             try launchAtLoginController.toggle()
+            let stateAfterToggle = launchAtLoginController.menuState
+            logger.debug("launch toggle ok state=\(String(describing: stateAfterToggle), privacy: .public)")
             refreshLaunchAtLoginMenuItem()
 
-            if launchAtLoginController.menuState == .requiresApproval {
+            // A fresh registration usually needs the user to approve Opta under
+            // System Settings > General > Login Items, so surface that panel.
+            if stateAfterToggle == .requiresApproval {
                 ServiceManagementLaunchAtLoginManager.openLoginItemsSettings()
             }
         } catch {
+            logger.error("launch toggle failed error=\(error.localizedDescription, privacy: .public)")
             showLaunchAtLoginError(error)
         }
     }
@@ -155,18 +165,18 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             return
         }
 
-        launchAtLoginItem.title = launchAtLoginController.menuState.checkboxTitle
-        launchAtLoginItem.state = .off
-
-        let (isEnabled, toolTip): (Bool, String?) = switch launchAtLoginController.menuState {
-        case .off, .on:
-            (true, nil)
+        let (state, isEnabled, toolTip): (NSControl.StateValue, Bool, String?) = switch launchAtLoginController.menuState {
+        case .off:
+            (.off, true, nil)
+        case .on:
+            (.on, true, nil)
         case .requiresApproval:
-            (true, "Approve Opta in System Settings > General > Login Items.")
+            (.mixed, true, "Approve Opta in System Settings > General > Login Items.")
         case .unavailable:
-            (false, "Launch at Login is unavailable for this app bundle.")
+            (.off, false, "Launch at Login is unavailable for this app bundle.")
         }
 
+        launchAtLoginItem.state = state
         launchAtLoginItem.isEnabled = isEnabled
         launchAtLoginItem.toolTip = toolTip
     }
@@ -176,9 +186,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             return
         }
 
-        currentApplicationShortcutItem.title = currentApplicationShortcutController.checkboxTitle
-        currentApplicationShortcutItem.state = .off
-        currentApplicationShortcutItem.toolTip = currentApplicationShortcutController.isEnabled
+        let isEnabled = currentApplicationShortcutController.isEnabled
+        currentApplicationShortcutItem.state = isEnabled ? .on : .off
+        currentApplicationShortcutItem.toolTip = isEnabled
             ? "Turn off if you type grave-accented characters with ⌥`."
             : nil
     }

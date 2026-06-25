@@ -13,7 +13,12 @@ final class ServiceManagementLaunchAtLoginManager: LaunchAtLoginManaging {
         case .requiresApproval:
             .requiresApproval
         case .notFound:
-            .unavailable
+            // The main app reports `.notFound` until Launch Services has indexed
+            // the bundle (e.g. right after an install). Treat it as "not a login
+            // item yet" so the menu still lets the user register, rather than a
+            // dead "unavailable" toggle. A genuine failure surfaces when
+            // `register()` throws.
+            .disabled
         @unknown default:
             .unavailable
         }

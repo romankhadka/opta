@@ -102,6 +102,47 @@ struct WindowCyclerTests {
         #expect(session.selectedWindow?.id == 1)
     }
 
+    @Test("a window focused outside the switcher stays ahead of stale recorded windows")
+    func windowFocusedOutsideSwitcherStaysAheadOfStaleRecordedWindows() {
+        // Earlier Opta usage recorded two windows: most recent id=10, then id=11.
+        let recencyHistory = WindowRecencyHistory()
+        recencyHistory.record(windowID: 11)
+        recencyHistory.record(windowID: 10)
+
+        let provider = MutableWindowProvider(
+            windows: [
+                window(id: 10, processIdentifier: 100, title: "A", recencyRank: 0),
+                window(id: 11, processIdentifier: 101, title: "B", recencyRank: 1),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider, recencyHistory: recencyHistory)
+
+        // Seed the observed-window set from a first session.
+        _ = cycler.start(scope: .allApplications)
+
+        // The user opens a brand-new window (id=1) outside Opta; it is frontmost.
+        provider.windows = [
+            window(id: 1, processIdentifier: 102, title: "N", recencyRank: 0),
+            window(id: 10, processIdentifier: 100, title: "A", recencyRank: 1),
+            window(id: 11, processIdentifier: 101, title: "B", recencyRank: 2),
+        ]
+        let afterOpeningNewWindow = cycler.start(scope: .allApplications)
+        #expect(afterOpeningNewWindow.windows.first?.id == 1)
+
+        // The user switches to window A (id=10) via Opta.
+        recencyHistory.record(windowID: 10)
+        provider.windows = [
+            window(id: 10, processIdentifier: 100, title: "A", recencyRank: 0),
+            window(id: 1, processIdentifier: 102, title: "N", recencyRank: 1),
+            window(id: 11, processIdentifier: 101, title: "B", recencyRank: 2),
+        ]
+        let afterSwitchingAway = cycler.start(scope: .allApplications)
+
+        // The newly opened window was the most recent before A, so it must remain
+        // second instead of sinking below the stale recorded window B.
+        #expect(afterSwitchingAway.windows.map(\.id) == [10, 1, 11])
+    }
+
     @Test("advancing a session wraps through available windows")
     func advancesAndWraps() {
         var session = WindowCycleSession(

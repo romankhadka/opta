@@ -29,15 +29,15 @@ struct CurrentApplicationShortcutControllerTests {
         #expect(!store.isEnabled)
     }
 
-    @Test("checkbox title reflects the enabled state")
-    func checkboxTitleReflectsEnabledState() {
+    @Test("isEnabled reflects the stored preference")
+    func isEnabledReflectsStoredPreference() {
         let store = StubShortcutStore(isEnabled: true)
         let controller = CurrentApplicationShortcutController(store: store)
 
-        #expect(controller.checkboxTitle == "☑ Cycle Current App (⌥`)")
+        #expect(controller.isEnabled)
 
         controller.setEnabled(false)
-        #expect(controller.checkboxTitle == "☐ Cycle Current App (⌥`)")
+        #expect(!controller.isEnabled)
     }
 }
 

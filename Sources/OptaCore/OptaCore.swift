@@ -112,10 +112,10 @@ public final class WindowCycler {
     }
 
     public func start(scope: WindowCycleScope) -> WindowCycleSession {
-        let availableWindows = provider.availableWindows()
-        let sortedWindows = recencyHistory?.sorted(availableWindows) ?? availableWindows.stableSortedByRecentUse()
+        let cyclableWindows = provider.availableWindows().filter(\.isCyclable)
+        recencyHistory?.observeWindowsFocusedOutsideOpta(cyclableWindows)
+        let sortedWindows = recencyHistory?.sorted(cyclableWindows) ?? cyclableWindows.stableSortedByRecentUse()
         let windows = sortedWindows
-            .filter(\.isCyclable)
             .filter { window in
                 switch scope {
                 case .allApplications:

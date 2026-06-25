@@ -1,7 +1,15 @@
 import ApplicationServices
 import AppKit
+import CoreGraphics
 import OptaCore
 import OSLog
+
+// The CoreGraphics window id of an accessibility element. The public
+// "AXWindowNumber" attribute is unsupported by many apps (Chrome, Electron, …),
+// so this private but long-stable function is the only reliable way to map an
+// accessibility window back to the window snapshot it represents.
+@_silgen_name("_AXUIElementGetWindow")
+private func _AXUIElementGetWindow(_ element: AXUIElement, _ identifier: UnsafeMutablePointer<CGWindowID>) -> AXError
 
 struct WindowActivator {
     private let logger = Logger.opta(category: "activation")
@@ -98,6 +106,14 @@ struct WindowActivator {
     }
 
     private func windowNumber(for window: AXUIElement) -> UInt32? {
+        // Prefer the private mapping, which resolves the CoreGraphics window id
+        // for any app and lets activation match the exact window even when two
+        // windows of the same app share bounds and report no title.
+        var windowID: CGWindowID = 0
+        if _AXUIElementGetWindow(window, &windowID) == .success, windowID != 0 {
+            return windowID
+        }
+
         var rawWindowNumber: CFTypeRef?
         let copyResult = AXUIElementCopyAttributeValue(
             window,
