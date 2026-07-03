@@ -41,7 +41,7 @@ struct SystemWindowProvider: WindowProviding {
             return windowIDs
         }
 
-        return windowInfo.enumerated().compactMap { recencyRank, rawWindow in
+        let snapshots = windowInfo.enumerated().compactMap { recencyRank, rawWindow -> WindowSnapshot? in
             guard
                 let windowNumber = number(rawWindow[kCGWindowNumber as String])?.uint32Value,
                 let processIdentifier = number(rawWindow[kCGWindowOwnerPID as String])?.int32Value,
@@ -86,6 +86,15 @@ struct SystemWindowProvider: WindowProviding {
                 hasAccessibilityWindow: hasAccessibilityWindow
             )
         }
+
+        // CGWindowList's own front-to-back order can lag behind the true
+        // active application (e.g. Chrome raising an existing window to
+        // handle a background "open URL" request from another app), so
+        // correct it against NSWorkspace's authoritative frontmost app.
+        return FrontmostApplicationCorrection.correcting(
+            snapshots,
+            frontmostProcessIdentifier: NSWorkspace.shared.frontmostApplication?.processIdentifier
+        )
     }
 
     private func number(_ rawValue: Any?) -> NSNumber? {

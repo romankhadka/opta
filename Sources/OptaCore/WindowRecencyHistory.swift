@@ -1,7 +1,6 @@
 public final class WindowRecencyHistory {
     private var recentWindowIDs: [UInt32] = []
-    private var observedWindowIDs: Set<UInt32> = []
-    private var didObserveWindows = false
+    private var lastObservedFrontmostWindowID: UInt32?
 
     public init() {}
 
@@ -40,35 +39,29 @@ public final class WindowRecencyHistory {
             .map(\.element)
     }
 
-    /// Folds windows that appeared since the last observation into the recency log.
+    /// Promotes the window the system currently shows as frontmost into the
+    /// recency log when it differs from what Opta last observed.
     ///
-    /// A window we have not observed before became frontmost through some action
-    /// outside Opta — it was opened, or clicked directly. The system stacking
-    /// order reflects that, but the explicit log would not, so the window would
-    /// sink below every stale recorded window once it is no longer brand new.
-    /// Promoting it here keeps the log the single source of truth: newly focused
-    /// windows enter at the top, ordered front-most first, just as if Opta had
-    /// activated them. Call once per observation, before `sorted(_:)`.
+    /// The system's front-to-back window order changes for reasons Opta never
+    /// sees directly — a Dock click, Cmd+Tab, or (as with clicking a link in a
+    /// terminal) one app asking another to raise a window it already had open.
+    /// Tracking only "is this window ID new" misses that last case, since the
+    /// window isn't new — it just regained focus outside Opta. Comparing
+    /// frontmost identity across calls catches both: a new window is frontmost
+    /// by construction, and an existing window regaining focus changes who's
+    /// frontmost too. Call once per observation, before `sorted(_:)`.
     public func observeWindowsFocusedOutsideOpta(_ windows: [WindowSnapshot]) {
-        let currentWindowIDs = Set(windows.map(\.id))
+        guard let currentFrontmost = windows.min(by: { $0.recencyRank < $1.recencyRank }) else {
+            return
+        }
         defer {
-            observedWindowIDs = currentWindowIDs
-            didObserveWindows = true
+            lastObservedFrontmostWindowID = currentFrontmost.id
         }
 
-        guard didObserveWindows else {
+        guard let lastObservedFrontmostWindowID, lastObservedFrontmostWindowID != currentFrontmost.id else {
             return
         }
 
-        let newlyObservedWindowIDs = currentWindowIDs.subtracting(observedWindowIDs)
-        let newlyObservedFrontMostFirst = windows
-            .filter { newlyObservedWindowIDs.contains($0.id) }
-            .sorted { $0.recencyRank < $1.recencyRank }
-
-        // Insert from the back so the front-most newly observed window ends up at
-        // the head of the log, above anything Opta recorded earlier.
-        for window in newlyObservedFrontMostFirst.reversed() {
-            record(windowID: window.id)
-        }
+        record(windowID: currentFrontmost.id)
     }
 }

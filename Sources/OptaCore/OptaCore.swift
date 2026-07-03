@@ -50,6 +50,49 @@ public struct WindowSnapshot: Equatable, Identifiable, Sendable {
     }
 }
 
+public enum FrontmostApplicationCorrection {
+    /// Re-ranks `windows` so the frontmost application's window is treated as
+    /// most recent (rank 0), preserving the relative order of everything else.
+    ///
+    /// CGWindowList's own front-to-back order can lag behind the true active
+    /// application for certain activation paths -- notably when one app asks
+    /// another to open a URL and the target app raises a window it already had
+    /// open, rather than going through a standard user-initiated activation.
+    /// NSWorkspace's notion of the frontmost application stays correct in that
+    /// case, so callers pass it here to correct the window list's own ordering
+    /// when the two disagree.
+    public static func correcting(
+        _ windows: [WindowSnapshot],
+        frontmostProcessIdentifier: Int32?
+    ) -> [WindowSnapshot] {
+        guard
+            let frontmostProcessIdentifier,
+            let frontmostIndex = windows.firstIndex(where: { $0.processIdentifier == frontmostProcessIdentifier }),
+            windows[frontmostIndex].recencyRank != 0
+        else {
+            return windows
+        }
+
+        var reordered = windows
+        let frontmostWindow = reordered.remove(at: frontmostIndex)
+        reordered.insert(frontmostWindow, at: 0)
+
+        return reordered.enumerated().map { index, window in
+            WindowSnapshot(
+                id: window.id,
+                processIdentifier: window.processIdentifier,
+                applicationName: window.applicationName,
+                title: window.title,
+                isOnscreen: window.isOnscreen,
+                layer: window.layer,
+                bounds: window.bounds,
+                recencyRank: index,
+                hasAccessibilityWindow: window.hasAccessibilityWindow
+            )
+        }
+    }
+}
+
 public protocol WindowProviding {
     func availableWindows() -> [WindowSnapshot]
 }

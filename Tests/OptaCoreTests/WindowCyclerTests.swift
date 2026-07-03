@@ -143,6 +143,37 @@ struct WindowCyclerTests {
         #expect(afterSwitchingAway.windows.map(\.id) == [10, 1, 11])
     }
 
+    @Test("an already-known window that regains focus outside the switcher is treated as current")
+    func alreadyKnownWindowRegainingFocusOutsideSwitcherIsTreatedAsCurrent() {
+        let provider = MutableWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Ghostty", recencyRank: 0),
+                window(id: 2, processIdentifier: 101, title: "Chrome", recencyRank: 1),
+            ]
+        )
+        let recencyHistory = WindowRecencyHistory()
+        let cycler = WindowCycler(provider: provider, recencyHistory: recencyHistory)
+
+        // Seed the observed-window set from a first session, then the user
+        // explicitly switches to Ghostty (id=1) via Opta.
+        _ = cycler.start(scope: .allApplications)
+        recencyHistory.record(windowID: 1)
+
+        // The user clicks a link in Ghostty that activates the EXISTING Chrome
+        // window (id=2) directly, outside Opta. Chrome is neither a brand-new
+        // window nor something Opta recorded, but it is now genuinely frontmost.
+        provider.windows = [
+            window(id: 2, processIdentifier: 101, title: "Chrome", recencyRank: 0),
+            window(id: 1, processIdentifier: 100, title: "Ghostty", recencyRank: 1),
+        ]
+        let session = cycler.start(scope: .allApplications)
+
+        // Chrome must be recognized as current, with Ghostty next in line --
+        // not the reverse, which would offer Chrome as "next" while already there.
+        #expect(session.windows.map(\.id) == [2, 1])
+        #expect(session.selectedWindow?.id == 2)
+    }
+
     @Test("excludes untitled windows without a matching accessibility window")
     func excludesUntitledWindowsWithoutAccessibilityWindow() {
         let provider = StubWindowProvider(
