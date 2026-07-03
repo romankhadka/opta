@@ -143,6 +143,23 @@ struct WindowCyclerTests {
         #expect(afterSwitchingAway.windows.map(\.id) == [10, 1, 11])
     }
 
+    @Test("excludes untitled windows without a matching accessibility window")
+    func excludesUntitledWindowsWithoutAccessibilityWindow() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Messages"),
+                window(id: 2, processIdentifier: 100, title: "", hasAccessibilityWindow: false),
+                window(id: 3, processIdentifier: 100, title: "", hasAccessibilityWindow: false),
+                window(id: 4, processIdentifier: 100, title: "", hasAccessibilityWindow: true),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider)
+
+        let session = cycler.start(scope: .allApplications)
+
+        #expect(session.windows.map(\.id) == [1, 4])
+    }
+
     @Test("advancing a session wraps through available windows")
     func advancesAndWraps() {
         var session = WindowCycleSession(
@@ -324,7 +341,8 @@ private func window(
     layer: Int = 0,
     width: Double = 800,
     height: Double = 600,
-    recencyRank: Int = 0
+    recencyRank: Int = 0,
+    hasAccessibilityWindow: Bool = true
 ) -> WindowSnapshot {
     WindowSnapshot(
         id: id,
@@ -334,6 +352,7 @@ private func window(
         isOnscreen: isOnscreen,
         layer: layer,
         bounds: WindowBounds(x: 0, y: 0, width: width, height: height),
-        recencyRank: recencyRank
+        recencyRank: recencyRank,
+        hasAccessibilityWindow: hasAccessibilityWindow
     )
 }

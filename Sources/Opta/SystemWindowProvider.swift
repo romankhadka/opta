@@ -1,8 +1,12 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import OptaCore
+import OSLog
 
 struct SystemWindowProvider: WindowProviding {
+    private let logger = Logger.opta(category: "windowProvider")
+
     func availableWindows() -> [WindowSnapshot] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let windowInfo = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
@@ -10,6 +14,32 @@ struct SystemWindowProvider: WindowProviding {
         }
 
         let ownProcessIdentifier = ProcessInfo.processInfo.processIdentifier
+
+        // Untitled windows are sometimes transient WindowServer surfaces (e.g.
+        // cross-fade snapshots shown while Messages or Chrome deactivates)
+        // rather than real user windows, so confirm they have a corresponding
+        // accessibility window before treating them as cyclable. Titled windows
+        // skip this check entirely, since ghosts never carry a real title.
+        var accessibilityWindowIDsByProcess: [Int32: Set<UInt32>] = [:]
+
+        func accessibilityWindowIDs(forProcessIdentifier processIdentifier: Int32) -> Set<UInt32> {
+            if let cached = accessibilityWindowIDsByProcess[processIdentifier] {
+                return cached
+            }
+
+            let application = AXUIElementCreateApplication(processIdentifier)
+            var rawWindows: CFTypeRef?
+            let copyResult = AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &rawWindows)
+
+            let windowIDs: Set<UInt32> = if copyResult == .success, let windows = rawWindows as? [AXUIElement] {
+                Set(windows.compactMap(accessibilityWindowNumber(for:)))
+            } else {
+                []
+            }
+
+            accessibilityWindowIDsByProcess[processIdentifier] = windowIDs
+            return windowIDs
+        }
 
         return windowInfo.enumerated().compactMap { recencyRank, rawWindow in
             guard
@@ -30,6 +60,15 @@ struct SystemWindowProvider: WindowProviding {
             let title = rawWindow[kCGWindowName as String] as? String ?? ""
             let isOnscreen = number(rawWindow[kCGWindowIsOnscreen as String])?.boolValue ?? true
 
+            let hasAccessibilityWindow = !title.isEmpty ||
+                accessibilityWindowIDs(forProcessIdentifier: processIdentifier).contains(windowNumber)
+
+            if title.isEmpty, layer == 0, !hasAccessibilityWindow {
+                logger.debug(
+                    "dropping untitled ghost window id=\(windowNumber, privacy: .public) pid=\(processIdentifier, privacy: .public) app=\(applicationName, privacy: .public)"
+                )
+            }
+
             return WindowSnapshot(
                 id: windowNumber,
                 processIdentifier: processIdentifier,
@@ -43,7 +82,8 @@ struct SystemWindowProvider: WindowProviding {
                     width: bounds.width,
                     height: bounds.height
                 ),
-                recencyRank: recencyRank
+                recencyRank: recencyRank,
+                hasAccessibilityWindow: hasAccessibilityWindow
             )
         }
     }

@@ -96,6 +96,7 @@ private func window(
         isOnscreen: true,
         layer: 0,
         bounds: WindowBounds(x: x, y: y, width: width, height: height),
-        recencyRank: 0
+        recencyRank: 0,
+        hasAccessibilityWindow: true
     )
 }

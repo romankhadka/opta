@@ -21,6 +21,7 @@ public struct WindowSnapshot: Equatable, Identifiable, Sendable {
     public let layer: Int
     public let bounds: WindowBounds
     public let recencyRank: Int
+    public let hasAccessibilityWindow: Bool
 
     public init(
         id: UInt32,
@@ -30,7 +31,8 @@ public struct WindowSnapshot: Equatable, Identifiable, Sendable {
         isOnscreen: Bool,
         layer: Int,
         bounds: WindowBounds,
-        recencyRank: Int
+        recencyRank: Int,
+        hasAccessibilityWindow: Bool
     ) {
         self.id = id
         self.processIdentifier = processIdentifier
@@ -40,6 +42,7 @@ public struct WindowSnapshot: Equatable, Identifiable, Sendable {
         self.layer = layer
         self.bounds = bounds
         self.recencyRank = recencyRank
+        self.hasAccessibilityWindow = hasAccessibilityWindow
     }
 
     public var displayTitle: String {
@@ -215,6 +218,7 @@ private extension WindowSnapshot {
         isOnscreen &&
             layer == 0 &&
             bounds.width > 0 &&
-            bounds.height > 0
+            bounds.height > 0 &&
+            (!title.isEmpty || hasAccessibilityWindow)
     }
 }
