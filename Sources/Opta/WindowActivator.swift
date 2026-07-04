@@ -5,6 +5,11 @@ import OptaCore
 import OSLog
 
 struct WindowActivator {
+    // Bounds every synchronous accessibility call so a busy target app delays
+    // activation by at most a second instead of the multi-second system
+    // default, which would also block the next hotkey press.
+    private static let accessibilityMessagingTimeout: Float = 1.0
+
     private let logger = Logger.opta(category: "activation")
 
     @discardableResult
@@ -16,6 +21,7 @@ struct WindowActivator {
         }
 
         let accessibilityApplication = AXUIElementCreateApplication(processIdentifier)
+        AXUIElementSetMessagingTimeout(accessibilityApplication, Self.accessibilityMessagingTimeout)
         guard let accessibilityWindow = findWindow(matching: window, in: accessibilityApplication) else {
             logger.error(
                 "no accessibility match id=\(window.id, privacy: .public) pid=\(window.processIdentifier, privacy: .public) title=\(window.displayTitle, privacy: .public)"
@@ -65,11 +71,31 @@ struct WindowActivator {
             return nil
         }
 
+        // An exact CoreGraphics id match is unambiguous and needs no title or
+        // bounds traffic, so try it for every window before falling back to
+        // scored matching. This keeps activation to a handful of accessibility
+        // calls instead of several synchronous round-trips per open window.
+        var windowNumbers: [UInt32?] = []
+        windowNumbers.reserveCapacity(windows.count)
+        for accessibilityWindow in windows {
+            // The timeout set on the application element does not carry over
+            // to its window elements, and both the raise action and the
+            // fallback attribute reads below message the window directly.
+            AXUIElementSetMessagingTimeout(accessibilityWindow, Self.accessibilityMessagingTimeout)
+            let windowNumber = windowNumber(for: accessibilityWindow)
+            if windowNumber == window.id {
+                logger.debug("activate exact id match id=\(window.id, privacy: .public)")
+                return accessibilityWindow
+            }
+
+            windowNumbers.append(windowNumber)
+        }
+
         let candidates = windows.enumerated().map { order, accessibilityWindow in
             AccessibilityWindowCandidate(
                 window: accessibilityWindow,
                 candidate: WindowActivationCandidate(
-                    windowNumber: windowNumber(for: accessibilityWindow),
+                    windowNumber: windowNumbers[order],
                     title: title(for: accessibilityWindow),
                     bounds: bounds(for: accessibilityWindow),
                     order: order

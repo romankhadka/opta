@@ -16,6 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var cycler = WindowCycler(provider: windowProvider, recencyHistory: recencyHistory)
     private lazy var coordinator = SwitcherCoordinator(cycler: cycler)
+    private lazy var focusTracker = WindowFocusTracker { [weak self] windowID in
+        self?.recencyHistory.record(windowID: windowID)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusMenuController = StatusMenuController(
@@ -31,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             PermissionManager.showKeyboardCaptureHelp(permissionState: keyboardPermissionState)
             return
         }
+
+        focusTracker.start()
 
         let eventTap = KeyboardEventTap(
             onCycleAllApplications: { [weak self] direction in

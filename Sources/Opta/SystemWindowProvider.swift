@@ -28,6 +28,12 @@ struct SystemWindowProvider: WindowProviding {
             }
 
             let application = AXUIElementCreateApplication(processIdentifier)
+            // This runs synchronously on the hotkey path; the default
+            // accessibility messaging timeout (several seconds) would let one
+            // busy app freeze the switcher. Timing out treats the process's
+            // untitled windows as ghosts for this invocation, which is the
+            // cheaper failure.
+            AXUIElementSetMessagingTimeout(application, 0.25)
             var rawWindows: CFTypeRef?
             let copyResult = AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &rawWindows)
 

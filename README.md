@@ -66,11 +66,13 @@ Opta is intentionally small and native. It uses:
 - IOKit HID access to request Input Monitoring for keyboard capture.
 - A session event tap to intercept `Option` + `Tab` and `Option` + `` ` ``.
 
-Windows are ordered by the system window list's front-to-back order, which
-tracks recent use for visible windows. The first key press starts on the second
-window in that list, so the frontmost window is skipped unless you cycle back to
-it. Minimized and hidden windows are excluded. Windows from Opta itself are
-excluded.
+Windows are ordered by most recent use. Opta records focus changes as they
+happen — windows it activates itself, application switches (Dock, Cmd+Tab),
+and focused-window changes inside each application — and falls back to the
+system window list's front-to-back order for windows it has never seen
+focused. The first key press starts on the second window in that order, so the
+frontmost window is skipped unless you cycle back to it. Minimized and hidden
+windows are excluded. Windows from Opta itself are excluded.
 
 ## License
 

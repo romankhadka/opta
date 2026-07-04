@@ -174,6 +174,29 @@ struct WindowCyclerTests {
         #expect(session.selectedWindow?.id == 2)
     }
 
+    @Test("windows aged out of the recency log fall back to system order")
+    func windowsAgedOutOfRecencyLogFallBackToSystemOrder() {
+        let recencyHistory = WindowRecencyHistory()
+        // Recording far more windows than the log retains must age out the
+        // oldest entry, so its stale rank cannot outrank the system order.
+        recencyHistory.record(windowID: 1)
+        for extraWindowID in UInt32(1_000)..<1_200 {
+            recencyHistory.record(windowID: extraWindowID)
+        }
+
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 2, processIdentifier: 101, title: "Front", recencyRank: 0),
+                window(id: 1, processIdentifier: 100, title: "Ancient", recencyRank: 1),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider, recencyHistory: recencyHistory)
+
+        let session = cycler.start(scope: .allApplications)
+
+        #expect(session.windows.map(\.id) == [2, 1])
+    }
+
     @Test("excludes untitled windows without a matching accessibility window")
     func excludesUntitledWindowsWithoutAccessibilityWindow() {
         let provider = StubWindowProvider(

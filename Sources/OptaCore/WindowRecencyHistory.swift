@@ -1,4 +1,10 @@
 public final class WindowRecencyHistory {
+    // Entries far down the log no longer describe meaningful recency, and ids
+    // of closed windows would otherwise accumulate forever (the system can
+    // even recycle them for unrelated new windows). Trimming the tail keeps
+    // the per-sort rank dictionary small and ages stale ids out.
+    private static let maximumEntryCount = 128
+
     private var recentWindowIDs: [UInt32] = []
     private var lastObservedFrontmostWindowID: UInt32?
 
@@ -7,6 +13,10 @@ public final class WindowRecencyHistory {
     public func record(windowID: UInt32) {
         recentWindowIDs.removeAll { $0 == windowID }
         recentWindowIDs.insert(windowID, at: 0)
+
+        if recentWindowIDs.count > Self.maximumEntryCount {
+            recentWindowIDs.removeLast(recentWindowIDs.count - Self.maximumEntryCount)
+        }
     }
 
     public func sorted(_ windows: [WindowSnapshot]) -> [WindowSnapshot] {
