@@ -15,11 +15,15 @@ struct SystemWindowProvider: WindowProviding {
 
         let ownProcessIdentifier = ProcessInfo.processInfo.processIdentifier
 
-        // Untitled windows are sometimes transient WindowServer surfaces (e.g.
-        // cross-fade snapshots shown while Messages or Chrome deactivates)
-        // rather than real user windows, so confirm they have a corresponding
-        // accessibility window before treating them as cyclable. Titled windows
-        // skip this check entirely, since ghosts never carry a real title.
+        // Untitled windows are sometimes transient surfaces (cross-fade
+        // snapshots or Chrome's status bubble) rather than real user windows,
+        // so confirm they have a corresponding accessibility window with a
+        // real-window subrole before treating them as cyclable. Merely being
+        // in the accessibility window list is not enough: Chrome registers
+        // its transient strips there too, but reports them as AXUnknown while
+        // every real window reports AXStandardWindow (or AXDialog). Titled
+        // windows skip this check entirely, since ghosts never carry a real
+        // title.
         var accessibilityWindowIDsByProcess: [Int32: Set<UInt32>] = [:]
 
         func accessibilityWindowIDs(forProcessIdentifier processIdentifier: Int32) -> Set<UInt32> {
@@ -38,7 +42,18 @@ struct SystemWindowProvider: WindowProviding {
             let copyResult = AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &rawWindows)
 
             let windowIDs: Set<UInt32> = if copyResult == .success, let windows = rawWindows as? [AXUIElement] {
-                Set(windows.compactMap(accessibilityWindowNumber(for:)))
+                Set(
+                    windows.compactMap { accessibilityWindow -> UInt32? in
+                        // Window elements do not inherit the application
+                        // element's messaging timeout.
+                        AXUIElementSetMessagingTimeout(accessibilityWindow, 0.25)
+                        guard hasRealWindowSubrole(accessibilityWindow) else {
+                            return nil
+                        }
+
+                        return accessibilityWindowNumber(for: accessibilityWindow)
+                    }
+                )
             } else {
                 []
             }
@@ -101,6 +116,26 @@ struct SystemWindowProvider: WindowProviding {
             snapshots,
             frontmostProcessIdentifier: NSWorkspace.shared.frontmostApplication?.processIdentifier
         )
+    }
+
+    /// Whether the accessibility window carries a subrole real user windows
+    /// report. A failed subrole read counts as real: dropping a genuine
+    /// window on an accessibility hiccup is worse than briefly showing a
+    /// transient one, and observed ghosts answer the query successfully
+    /// (with AXUnknown).
+    private func hasRealWindowSubrole(_ accessibilityWindow: AXUIElement) -> Bool {
+        var rawSubrole: CFTypeRef?
+        let copyResult = AXUIElementCopyAttributeValue(
+            accessibilityWindow,
+            kAXSubroleAttribute as CFString,
+            &rawSubrole
+        )
+
+        guard copyResult == .success, let subrole = rawSubrole as? String else {
+            return true
+        }
+
+        return subrole == kAXStandardWindowSubrole as String || subrole == kAXDialogSubrole as String
     }
 
     private func number(_ rawValue: Any?) -> NSNumber? {
