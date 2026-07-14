@@ -164,15 +164,18 @@ or 4 ms p95 across at least ten repeated-session renders.
 
 ### Automated tests
 
-Extend the switcher style regression tests before changing production code.
-The tests must verify:
+Revise and extend the switcher style regression tests before changing
+production code. The existing assertion that forbids any selected scale
+effect must be replaced with one that requires the selected scale to be
+guarded by Reduce Motion. The tests must verify:
 
 * The native panel shadow remains disabled.
 * All structural rounded rectangles use the shared corner radius.
 * The selected edge is one pixel rather than two.
 * There is no per-tile material or selected-tile shadow.
 * Reduce Motion disables the selected scale cue.
-* Preview dimensions and capture limits remain unchanged.
+* Preview dimensions and capture limits remain unchanged, asserted against
+  both the overlay controller and the preview provider sources.
 
 Run the complete Swift test suite after implementation.
 
@@ -189,8 +192,10 @@ Verify the signed release build with:
 
 ### Performance comparison
 
-Record the same repeated Option-Tab sequence used for the existing baseline.
-Compare signpost distributions rather than a single run. Confirm:
+Record a repeated Option-Tab sequence of at least ten repeated-session
+renders against the signed release build. Compare signpost distributions
+rather than a single run, and document the capture tool and sequence
+alongside the results so future comparisons can reproduce them. Confirm:
 
 * Warm `OverlayRender` stays below 1 ms median and 4 ms p95.
 * `PreviewRefresh` and `IconLookup` behavior is unchanged.
