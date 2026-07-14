@@ -184,6 +184,23 @@ private enum SwitcherLayout {
     }
 }
 
+private enum SwitcherVisualStyle {
+    static let containerEdgeOpacity = 0.12
+    static let containerShadowOpacity = 0.28
+    static let containerShadowRadius: CGFloat = 20
+    static let containerShadowYOffset: CGFloat = 10
+    static let selectedFillOpacity = 0.10
+    static let selectedEdgeOpacity = 0.30
+    static let selectedEdgeLineWidth: CGFloat = 1
+    static let selectedScale: CGFloat = 1.012
+    static let selectionAnimationDuration = 0.11
+    static let titleFontSize: CGFloat = 12.5
+    static let titleOpacity = 0.96
+    static let applicationFontSize: CGFloat = 10.5
+    static let applicationNameOpacity = 0.50
+    static let applicationIconSize: CGFloat = 20
+}
+
 private struct SwitcherDisplayItem: Identifiable {
     let window: WindowSnapshot
     let preview: NSImage?
@@ -213,9 +230,16 @@ private struct SwitcherOverlayView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                        .strokeBorder(
+                            Color.white.opacity(SwitcherVisualStyle.containerEdgeOpacity),
+                            lineWidth: 1
+                        )
                 )
-                .shadow(color: .black.opacity(0.38), radius: 32, y: 18)
+                .shadow(
+                    color: .black.opacity(SwitcherVisualStyle.containerShadowOpacity),
+                    radius: SwitcherVisualStyle.containerShadowRadius,
+                    y: SwitcherVisualStyle.containerShadowYOffset
+                )
 
             LazyVGrid(columns: columns, alignment: .center, spacing: SwitcherLayout.tileSpacing) {
                 ForEach(items) { item in
@@ -231,10 +255,13 @@ private struct SwitcherOverlayView: View {
             .padding(SwitcherLayout.panelPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .environment(\.colorScheme, .dark)
     }
 }
 
 private struct SwitcherTileView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let item: SwitcherDisplayItem
     let isSelected: Bool
     let onHoverWindow: (UInt32) -> Void
@@ -249,18 +276,35 @@ private struct SwitcherTileView: View {
 
             HStack(spacing: 7) {
                 icon
-                    .frame(width: 22, height: 22)
+                    .frame(
+                        width: SwitcherVisualStyle.applicationIconSize,
+                        height: SwitcherVisualStyle.applicationIconSize
+                    )
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.window.displayTitle)
-                        .font(.system(size: 12, weight: .semibold, design: .default))
+                        .font(
+                            .system(
+                                size: SwitcherVisualStyle.titleFontSize,
+                                weight: .semibold,
+                                design: .default
+                            )
+                        )
                         .lineLimit(1)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.white.opacity(SwitcherVisualStyle.titleOpacity))
 
                     Text(item.window.applicationName)
-                        .font(.system(size: 11, weight: .medium, design: .default))
+                        .font(
+                            .system(
+                                size: SwitcherVisualStyle.applicationFontSize,
+                                weight: .regular,
+                                design: .default
+                            )
+                        )
                         .lineLimit(1)
-                        .foregroundStyle(Color.white.opacity(0.62))
+                        .foregroundStyle(
+                            Color.white.opacity(SwitcherVisualStyle.applicationNameOpacity)
+                        )
                 }
             }
         }
@@ -268,14 +312,22 @@ private struct SwitcherTileView: View {
         .frame(width: SwitcherLayout.tileWidth, height: SwitcherLayout.tileHeight, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.20) : Color.clear)
+                .fill(
+                    isSelected
+                        ? Color.white.opacity(SwitcherVisualStyle.selectedFillOpacity)
+                        : Color.clear
+                )
         )
         .overlay {
             if isSelected {
                 RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.55), lineWidth: 2)
+                    .strokeBorder(
+                        Color.white.opacity(SwitcherVisualStyle.selectedEdgeOpacity),
+                        lineWidth: SwitcherVisualStyle.selectedEdgeLineWidth
+                    )
             }
         }
+        .scaleEffect(isSelected && !reduceMotion ? SwitcherVisualStyle.selectedScale : 1)
         .contentShape(RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous))
         .onHover { isHovering in
             guard isHovering else {
@@ -287,7 +339,12 @@ private struct SwitcherTileView: View {
         .onTapGesture {
             onClickWindow(item.id)
         }
-        .animation(.snappy(duration: 0.12), value: isSelected)
+        .animation(
+            reduceMotion ? nil : .snappy(
+                duration: SwitcherVisualStyle.selectionAnimationDuration
+            ),
+            value: isSelected
+        )
     }
 
     @ViewBuilder
