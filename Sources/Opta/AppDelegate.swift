@@ -65,6 +65,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func cycleAllApplications(direction: WindowCycleDirection) {
+        let measurement = PerformanceMetrics.begin("CycleAllApplications")
+        defer { PerformanceMetrics.end(measurement) }
+
         let session = coordinator.press(scope: .allApplications, direction: direction)
         logger.debug(
             "cycle all direction=\(String(describing: direction), privacy: .public) windows=\(session.windows.map(\.id).description, privacy: .public) selected=\(session.selectedWindow?.id ?? 0, privacy: .public)"
@@ -73,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func cycleCurrentApplication(direction: WindowCycleDirection) {
+        let measurement = PerformanceMetrics.begin("CycleCurrentApplication")
+        defer { PerformanceMetrics.end(measurement) }
+
         guard let frontmostProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
             overlayController.hide()
             return
@@ -89,6 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func cycleActiveSession(direction: WindowCycleDirection) {
+        let measurement = PerformanceMetrics.begin("CycleActiveSession")
+        defer { PerformanceMetrics.end(measurement) }
+
         guard let session = coordinator.advanceActiveSession(direction) else {
             return
         }

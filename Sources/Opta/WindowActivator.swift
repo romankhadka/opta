@@ -14,6 +14,9 @@ struct WindowActivator {
 
     @discardableResult
     func activate(_ window: WindowSnapshot) -> Bool {
+        let measurement = PerformanceMetrics.begin("WindowActivation")
+        defer { PerformanceMetrics.end(measurement) }
+
         let processIdentifier = pid_t(window.processIdentifier)
         guard let application = NSRunningApplication(processIdentifier: processIdentifier) else {
             logger.error("missing app pid=\(window.processIdentifier, privacy: .public)")
@@ -22,7 +25,11 @@ struct WindowActivator {
 
         let accessibilityApplication = AXUIElementCreateApplication(processIdentifier)
         AXUIElementSetMessagingTimeout(accessibilityApplication, Self.accessibilityMessagingTimeout)
-        guard let accessibilityWindow = findWindow(matching: window, in: accessibilityApplication) else {
+        let matchMeasurement = PerformanceMetrics.begin("WindowMatch")
+        let matchingWindow = findWindow(matching: window, in: accessibilityApplication)
+        PerformanceMetrics.end(matchMeasurement)
+
+        guard let accessibilityWindow = matchingWindow else {
             logger.error(
                 "no accessibility match id=\(window.id, privacy: .public) pid=\(window.processIdentifier, privacy: .public) title=\(window.displayTitle, privacy: .public)"
             )
@@ -33,6 +40,9 @@ struct WindowActivator {
         logger.debug(
             "activate match id=\(window.id, privacy: .public) pid=\(window.processIdentifier, privacy: .public) title=\(window.displayTitle, privacy: .public)"
         )
+        let focusMeasurement = PerformanceMetrics.begin("WindowFocusActions")
+        defer { PerformanceMetrics.end(focusMeasurement) }
+
         application.activate(options: [])
         AXUIElementSetAttributeValue(
             accessibilityApplication,

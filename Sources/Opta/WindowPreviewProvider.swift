@@ -15,6 +15,7 @@ final class WindowPreviewProvider {
     private static let maximumCaptureScale: CGFloat = 2
 
     private var cachedPreviews: [UInt32: NSImage] = [:]
+    private var cachedIcons: [pid_t: NSImage] = [:]
     private var cacheGeneration = 0
 
     func preview(for window: WindowSnapshot) -> NSImage? {
@@ -22,20 +23,42 @@ final class WindowPreviewProvider {
     }
 
     func icon(for window: WindowSnapshot) -> NSImage? {
-        NSRunningApplication(processIdentifier: pid_t(window.processIdentifier))?.icon
+        let measurement = PerformanceMetrics.begin("IconLookup")
+        defer { PerformanceMetrics.end(measurement) }
+
+        let processIdentifier = pid_t(window.processIdentifier)
+        if let cachedIcon = cachedIcons[processIdentifier] {
+            return cachedIcon
+        }
+
+        guard let icon = NSRunningApplication(processIdentifier: processIdentifier)?.icon else {
+            return nil
+        }
+
+        cachedIcons[processIdentifier] = icon
+        return icon
+    }
+
+    func cancelPendingRefreshes() {
+        cacheGeneration += 1
     }
 
     func invalidate() {
-        cacheGeneration += 1
+        cancelPendingRefreshes()
         cachedPreviews.removeAll()
+        cachedIcons.removeAll()
     }
 
     func refreshPreviews(for windows: [WindowSnapshot]) async -> Bool {
+        let measurement = PerformanceMetrics.begin("PreviewRefresh")
+        defer { PerformanceMetrics.end(measurement) }
+
         let missingWindows = windows.filter { cachedPreviews[$0.id] == nil }
         guard !missingWindows.isEmpty else {
             return false
         }
 
+        let generation = cacheGeneration
         guard let shareableContent = try? await SCShareableContent.excludingDesktopWindows(
             true,
             onScreenWindowsOnly: true
@@ -43,9 +66,10 @@ final class WindowPreviewProvider {
             return false
         }
 
-        // Read after the await so an invalidate() during the content fetch
-        // also discards these captures instead of repopulating a cleared cache.
-        let generation = cacheGeneration
+        guard !Task.isCancelled, cacheGeneration == generation else {
+            return false
+        }
+
         let shareableWindowsByID = Dictionary(
             shareableContent.windows.map { ($0.windowID, $0) },
             uniquingKeysWith: { first, _ in first }
@@ -62,6 +86,7 @@ final class WindowPreviewProvider {
 
             return Task {
                 guard let preview = try? await self.capturePreview(for: shareableWindow),
+                      !Task.isCancelled,
                       self.cacheGeneration == generation else {
                     return false
                 }

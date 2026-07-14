@@ -8,6 +8,9 @@ struct SystemWindowProvider: WindowProviding {
     private let logger = Logger.opta(category: "windowProvider")
 
     func availableWindows() -> [WindowSnapshot] {
+        let measurement = PerformanceMetrics.begin("WindowDiscovery")
+        defer { PerformanceMetrics.end(measurement) }
+
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let windowInfo = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return []

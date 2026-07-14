@@ -12,6 +12,7 @@ final class SwitcherOverlayController {
     private var currentSession: WindowCycleSession?
     private var refreshedWindowIDs: [UInt32] = []
     private var previewRefreshTask: Task<Void, Never>?
+    private var previewCacheExpirationTask: Task<Void, Never>?
     private var onHoverWindow: WindowInteraction = { _ in }
     private var onClickWindow: WindowInteraction = { _ in }
 
@@ -20,6 +21,8 @@ final class SwitcherOverlayController {
         onHoverWindow: @escaping (UInt32) -> Void,
         onClickWindow: @escaping (UInt32) -> Void
     ) {
+        previewCacheExpirationTask?.cancel()
+        previewCacheExpirationTask = nil
         self.onHoverWindow = onHoverWindow
         self.onClickWindow = onClickWindow
         currentSession = session
@@ -47,14 +50,33 @@ final class SwitcherOverlayController {
         refreshedWindowIDs = []
         previewRefreshTask?.cancel()
         previewRefreshTask = nil
-        // Drop cached previews so the next session captures live images rather
-        // than reusing stale snapshots (or, after window IDs are recycled by the
-        // system, another window's image). Also bounds cache growth over time.
-        previewProvider.invalidate()
+        previewProvider.cancelPendingRefreshes()
+        schedulePreviewCacheExpiration()
         panel?.orderOut(nil)
     }
 
+    private func schedulePreviewCacheExpiration() {
+        previewCacheExpirationTask?.cancel()
+        previewCacheExpirationTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled, let self else {
+                return
+            }
+
+            previewProvider.invalidate()
+            previewCacheExpirationTask = nil
+        }
+    }
+
     private func render(session: WindowCycleSession) {
+        let measurement = PerformanceMetrics.begin("OverlayRender")
+        defer { PerformanceMetrics.end(measurement) }
+
         let items = session.windows.map { window in
             SwitcherDisplayItem(
                 window: window,
