@@ -90,7 +90,7 @@ final class SwitcherOverlayController {
         )
         panel.backgroundColor = .clear
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.ignoresMouseEvents = false
         panel.acceptsMouseMovedEvents = true
         panel.isMovable = false
@@ -154,6 +154,7 @@ private enum SwitcherLayout {
     static let tileHeight: CGFloat = 148
     static let tileSpacing: CGFloat = 12
     static let panelPadding: CGFloat = 24
+    static let cornerRadius: CGFloat = 16
     static let maxColumns = 6
 
     static func columnCount(for itemCount: Int) -> Int {
@@ -186,11 +187,11 @@ private struct SwitcherOverlayView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.38), radius: 32, y: 18)
 
@@ -222,11 +223,7 @@ private struct SwitcherTileView: View {
             preview
                 .frame(width: 138, height: 86)
                 .background(Color.black.opacity(0.28))
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                )
+                .clipShape(RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous))
 
             HStack(spacing: 7) {
                 icon
@@ -248,18 +245,16 @@ private struct SwitcherTileView: View {
         .padding(10)
         .frame(width: SwitcherLayout.tileWidth, height: SwitcherLayout.tileHeight, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.20) : Color.white.opacity(0.07))
+            RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.20) : Color.clear)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .stroke(
-                    isSelected ? Color(red: 0.62, green: 0.64, blue: 0.66) : Color.white.opacity(0.10),
-                    lineWidth: isSelected ? 2 : 1
-                )
-        )
-        .scaleEffect(isSelected ? 1.025 : 1.0)
-        .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.55), lineWidth: 2)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous))
         .onHover { isHovering in
             guard isHovering else {
                 return
