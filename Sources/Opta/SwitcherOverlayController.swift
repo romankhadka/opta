@@ -13,6 +13,7 @@ final class SwitcherOverlayController {
     private var refreshedWindowIDs: [UInt32] = []
     private var previewRefreshTask: Task<Void, Never>?
     private var previewCacheExpirationTask: Task<Void, Never>?
+    private var hoverSelectionGate: HoverSelectionGate?
     private var onHoverWindow: WindowInteraction = { _ in }
     private var onClickWindow: WindowInteraction = { _ in }
 
@@ -23,6 +24,9 @@ final class SwitcherOverlayController {
     ) {
         previewCacheExpirationTask?.cancel()
         previewCacheExpirationTask = nil
+        if currentSession == nil {
+            hoverSelectionGate = HoverSelectionGate(initialPointerLocation: NSEvent.mouseLocation)
+        }
         self.onHoverWindow = onHoverWindow
         self.onClickWindow = onClickWindow
         currentSession = session
@@ -47,6 +51,7 @@ final class SwitcherOverlayController {
 
     func hide() {
         currentSession = nil
+        hoverSelectionGate = nil
         refreshedWindowIDs = []
         previewRefreshTask?.cancel()
         previewRefreshTask = nil
@@ -88,7 +93,9 @@ final class SwitcherOverlayController {
         let overlayView = SwitcherOverlayView(
             items: items,
             selectedWindowID: selectedWindowID,
-            onHoverWindow: onHoverWindow,
+            onHoverWindow: { [weak self] windowID in
+                self?.handleHover(windowID: windowID)
+            },
             onClickWindow: onClickWindow
         )
 
@@ -101,6 +108,17 @@ final class SwitcherOverlayController {
         }
 
         positionPanel(itemCount: items.count)
+    }
+
+    private func handleHover(windowID: UInt32) {
+        guard windowID != currentSession?.selectedWindow?.id else {
+            return
+        }
+        guard hoverSelectionGate?.shouldSelect(at: NSEvent.mouseLocation) == true else {
+            return
+        }
+
+        onHoverWindow(windowID)
     }
 
     private func makePanel(contentView: NSView) {
@@ -329,8 +347,8 @@ private struct SwitcherTileView: View {
         }
         .scaleEffect(isSelected && !reduceMotion ? SwitcherVisualStyle.selectedScale : 1)
         .contentShape(RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous))
-        .onHover { isHovering in
-            guard isHovering else {
+        .onContinuousHover { phase in
+            guard case .active = phase else {
                 return
             }
 
