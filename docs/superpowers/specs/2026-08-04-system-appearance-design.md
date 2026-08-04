@@ -33,8 +33,11 @@ Out of scope, deliberately:
 Split the visual tokens by whether they depend on appearance.
 
 Scheme-independent tokens -- corner radii, tile dimensions, font sizes, icon
-size, selected scale, animation duration, edge line width -- stay in
-`SwitcherVisualStyle` inside the view file, where they are today.
+size, selected scale, animation duration, edge line width, and the container
+shadow's radius and Y offset -- stay in `SwitcherVisualStyle` inside the view
+file, where they are today. The shadow's geometry is listed explicitly because
+it sits next to the shadow's opacity, which does move; only the opacity is
+appearance-dependent.
 
 Scheme-dependent tokens -- every opacity and every color -- move into a new
 `SwitcherPalette` value type in `OptaCore`, with a `.dark` case that reproduces
@@ -55,8 +58,8 @@ gain one for this. So the palette cannot hold a `Color`. It carries an ink
 
 ```swift
 public enum SwitcherInkTone: Sendable {
-    case light   // draw with white ink -- for dark appearance
-    case dark    // draw with black ink -- for light appearance
+    case white
+    case black
 }
 
 public struct SwitcherPalette: Equatable, Sendable {
@@ -68,15 +71,20 @@ public struct SwitcherPalette: Equatable, Sendable {
         public let start, end: GradientStop
     }
 
+    // Ink-tinted: drawn in `ink` at the given opacity.
     public let ink: SwitcherInkTone
     public let containerEdgeOpacity: Double
-    public let containerShadowOpacity: Double
     public let selectedFillOpacity: Double
     public let selectedEdgeOpacity: Double
     public let titleOpacity: Double
     public let applicationNameOpacity: Double
-    public let previewBackdropOpacity: Double
     public let missingIconOpacity: Double
+
+    // Always black in both appearances; only the weight changes.
+    public let containerShadowOpacity: Double
+    public let previewBackdropOpacity: Double
+
+    // Explicit sRGB triples.
     public let iconPlaceholderGradient: Gradient
     public let previewPlaceholderGradient: Gradient
 
@@ -87,11 +95,21 @@ public struct SwitcherPalette: Equatable, Sendable {
 }
 ```
 
+`SwitcherInkTone` is named for the ink it produces, not for the appearance that
+uses it -- the dark palette draws with white ink and vice versa, so naming the
+cases after appearances would invert on every read.
+
+The container shadow and the preview backdrop are deliberately not ink-tinted.
+Both are recesses rather than marks: a shadow is black in every macOS
+appearance, and the backdrop is the well a preview sits in. Inverting either to
+white in light appearance would turn a recess into a glow. Only their opacity
+varies.
+
 `.dark` holds the current constants verbatim, including the two placeholder
 gradients' exact RGB triples, so the shipped dark look does not drift by a
 single value.
 
-`.light` mirrors it with dark ink: a soft black fill and a black hairline for
+`.light` mirrors it with black ink: a soft black fill and a black hairline for
 the selected tile, a lighter container shadow, and light-gray placeholder
 gradients. Selection lands near 8% fill and 22% edge -- black ink needs less
 opacity than white to carry the same weight. The shadow is the one value that
@@ -108,20 +126,27 @@ real overlay during manual verification, not fixed requirements.
   down to each `SwitcherTileView`.
 * A small private extension maps `SwitcherInkTone` to `Color.white` /
   `Color.black`, keeping SwiftUI knowledge in the view layer.
-* Every `Color.white.opacity(…)` becomes `palette.inkColor.opacity(…)`. The
-  preview backdrop, currently `Color.black.opacity(0.28)`, becomes palette
-  driven, as do both placeholder gradients and the missing-icon square.
-* The shadow color stays black in both appearances -- shadows are black
-  everywhere -- but takes its opacity from the palette.
+* Every `Color.white.opacity(…)` becomes `palette.inkColor.opacity(…)`. Both
+  placeholder gradients are rebuilt from the palette's `GradientStop` triples.
+* The container shadow and the preview backdrop keep their literal
+  `Color.black` and take only their opacity from the palette. Along with the
+  `Color.clear` used for an unselected tile's fill, these are the only color
+  literals that survive the change.
 * `SwitcherVisualStyle` sheds the tokens that moved and keeps the rest.
 
 ### `NSPanel` configuration
 
 No change. Leaving `panel.appearance` nil lets the panel inherit
 `NSApp.effectiveAppearance`, so System Settings -> Appearance, including Auto,
-reaches SwiftUI's `colorScheme`. SwiftUI re-renders the hosting view when the
-effective appearance changes, so a live toggle is picked up without the
-overlay being dismissed and reshown.
+reaches SwiftUI's `colorScheme`.
+
+The guarantee this buys is that every invocation renders against the current
+appearance: `render(session:)` runs on each `show`, and the palette is derived
+from the environment at render time. Restyling *while the overlay is already
+on screen* likely works too, since SwiftUI tracks effective-appearance changes,
+but the spec does not claim it -- the overlay is only visible while a modifier
+is held, so the appearance cannot be changed underneath it in practice, and an
+unverifiable claim is worth less than the one above.
 
 ## Data flow
 
@@ -138,10 +163,8 @@ System Settings -> Appearance
 
 ## Error handling
 
-There is no failure mode to handle. `colorScheme` is always either `.light` or
-`.dark`, and `palette(forDarkAppearance:)` is total over that domain. If a
-future macOS adds a third scheme, the mapping falls back to `.dark`, which is
-the current behavior.
+There is no failure mode to handle. `colorScheme` has exactly two cases, and
+`palette(forDarkAppearance:)` is total over both.
 
 ## Testing
 
@@ -150,8 +173,9 @@ the current behavior.
 * `.dark` still carries the Quiet Glass values. This is a regression lock: the
   point of the change is that dark appearance looks identical afterward.
 * `.light` differs from `.dark` on every token that carries color weight: ink
-  tone, both placeholder gradients, the container shadow, the preview backdrop,
-  and the selected fill and edge. A palette that is only half converted -- some
+  tone, both placeholder gradients, the container edge, the container shadow,
+  the preview backdrop, and the selected fill and edge. A palette that is only
+  half converted -- some
   values mirrored, others left at their dark value by accident -- fails here
   rather than shipping. Label opacities are exempt: they may legitimately land
   on the same number in both appearances, and the test should not force an
@@ -161,26 +185,43 @@ the current behavior.
 
 ### `Tests/OptaCoreTests/SwitcherOverlayStyleTests.swift` (updated)
 
-The existing suite reads the overlay source as text. Three changes:
+The existing suite reads the overlay source as text. Exactly seven assertions
+break, all inside `defines the Quiet Glass visual tokens`, because they assert
+literals that are leaving `SwitcherOverlayController.swift`:
 
-* Replace the `.environment(\.colorScheme, .dark)` assertion with one that the
-  view reads `@Environment(\.colorScheme)`.
-* Assert no bare `Color.white` or `Color.black.opacity` literal survives in the
-  view body, so a future edit cannot quietly reintroduce a pinned color.
-* Move the assertions for tokens that migrated to the palette so they check
-  `SwitcherPalette` instead of `SwitcherVisualStyle`.
+* `containerEdgeOpacity = 0.12`
+* `containerShadowOpacity = 0.28`
+* `selectedFillOpacity = 0.10`
+* `selectedEdgeOpacity = 0.30`
+* `titleOpacity = 0.96`
+* `applicationNameOpacity = 0.50`
+* `.environment(\.colorScheme, .dark)`
 
-Every layout, material-hierarchy, shadow-count, corner-radius, and
-Reduce-Motion assertion stays exactly as written.
+The first six move to `SwitcherPaletteTests`, asserted against `.dark` as
+values rather than as source text. The seventh is replaced by an assertion that
+the view reads `@Environment(\.colorScheme)`.
+
+Add two assertions: that no `Color.white` literal survives anywhere in the
+view, and that `.black.opacity(` appears exactly twice -- the container shadow
+and the preview backdrop. Together these block a pinned color from creeping
+back in without contradicting the two literals the design keeps on purpose.
+
+Everything else stays exactly as written, including the shadow-radius,
+shadow-offset, font-size, icon-size, scale, animation-duration, and edge
+line-width assertions, the whole of `uses one shared structural corner radius`
+and `guards selection motion with Reduce Motion`, and the material and
+shadow-count checks in `uses a restrained material and shadow hierarchy`. The
+name-presence checks in that last suite keep passing because the view will read
+`palette.containerEdgeOpacity`, which still contains the asserted substring.
 
 ### Manual verification
 
 * Show the switcher in Light appearance over a bright window and over a dark
   window; repeat in Dark appearance. Container edge, selected tile, and both
   label tiers must stay legible in all four.
-* Toggle System Settings -> Appearance while Opta is running and confirm the
-  next invocation matches, then toggle while the overlay is visible and
-  confirm it restyles live.
+* Toggle System Settings -> Appearance while Opta is running, without
+  restarting it, and confirm the next invocation matches the new appearance.
+  Repeat in the other direction.
 * Force-quit a preview source so the icon and gradient fallbacks render, and
   check both in Light appearance.
 
@@ -188,7 +229,10 @@ Reduce-Motion assertion stays exactly as written.
 
 * In Light appearance the overlay reads as a light panel with dark ink,
   legible over both bright and dark windows behind it.
-* In Dark appearance the overlay is pixel-identical to the current build.
-* The overlay follows System Settings including Auto, with no preference of
+* In Dark appearance the overlay is visually unchanged. The `.dark` palette is
+  locked to today's values by test, and the `colorScheme` override being
+  removed was already redundant when the system was in Dark appearance.
+* Every invocation renders against the appearance current at that moment, so
+  the overlay follows System Settings including Auto, with no preference of
   its own.
 * `swift test` passes, including the new palette suite.
