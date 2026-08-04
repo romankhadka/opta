@@ -201,10 +201,17 @@ The first six move to `SwitcherPaletteTests`, asserted against `.dark` as
 values rather than as source text. The seventh is replaced by an assertion that
 the view reads `@Environment(\.colorScheme)`.
 
-Add two assertions: that no `Color.white` literal survives anywhere in the
-view, and that `.black.opacity(` appears exactly twice -- the container shadow
-and the preview backdrop. Together these block a pinned color from creeping
-back in without contradicting the two literals the design keeps on purpose.
+Add assertions that the view derives its palette from the environment and that
+no tinted mark is pinned: `.white.opacity(` must not appear at all, and
+`.black.opacity(` exactly twice -- the container shadow and the preview
+backdrop.
+
+The guard is written against `.white.opacity(` rather than against a bare
+`Color.white` because the ink mapping necessarily names both `Color.white` and
+`Color.black`. What must never come back is a *tinted mark* written by hand;
+naming the color to map a tone is the mechanism, not the regression. Matching
+on the `.opacity(` suffix also catches the leading-dot form
+(`.white.opacity(…)`), which a bare `Color.white` check would miss.
 
 Everything else stays exactly as written, including the shadow-radius,
 shadow-offset, font-size, icon-size, scale, animation-duration, and edge

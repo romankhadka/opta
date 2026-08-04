@@ -202,21 +202,40 @@ private enum SwitcherLayout {
     }
 }
 
+/// The half of the Quiet Glass tokens that does not change with appearance.
+/// Everything that does lives in `SwitcherPalette`.
 private enum SwitcherVisualStyle {
-    static let containerEdgeOpacity = 0.12
-    static let containerShadowOpacity = 0.28
     static let containerShadowRadius: CGFloat = 20
     static let containerShadowYOffset: CGFloat = 10
-    static let selectedFillOpacity = 0.10
-    static let selectedEdgeOpacity = 0.30
     static let selectedEdgeLineWidth: CGFloat = 1
     static let selectedScale: CGFloat = 1.012
     static let selectionAnimationDuration = 0.11
     static let titleFontSize: CGFloat = 12.5
-    static let titleOpacity = 0.96
     static let applicationFontSize: CGFloat = 10.5
-    static let applicationNameOpacity = 0.50
     static let applicationIconSize: CGFloat = 20
+}
+
+private extension SwitcherPalette {
+    var inkColor: Color {
+        switch ink {
+        case .white:
+            Color.white
+        case .black:
+            Color.black
+        }
+    }
+}
+
+private extension SwitcherPalette.Gradient {
+    var colors: [Color] {
+        [start.color, end.color]
+    }
+}
+
+private extension SwitcherPalette.GradientStop {
+    var color: Color {
+        Color(red: red, green: green, blue: blue)
+    }
 }
 
 private struct SwitcherDisplayItem: Identifiable {
@@ -230,10 +249,16 @@ private struct SwitcherDisplayItem: Identifiable {
 }
 
 private struct SwitcherOverlayView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let items: [SwitcherDisplayItem]
     let selectedWindowID: UInt32?
     let onHoverWindow: (UInt32) -> Void
     let onClickWindow: (UInt32) -> Void
+
+    private var palette: SwitcherPalette {
+        SwitcherPalette.palette(forDarkAppearance: colorScheme == .dark)
+    }
 
     private var columns: [GridItem] {
         Array(
@@ -249,12 +274,12 @@ private struct SwitcherOverlayView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
                         .strokeBorder(
-                            Color.white.opacity(SwitcherVisualStyle.containerEdgeOpacity),
+                            palette.inkColor.opacity(palette.containerEdgeOpacity),
                             lineWidth: 1
                         )
                 )
                 .shadow(
-                    color: .black.opacity(SwitcherVisualStyle.containerShadowOpacity),
+                    color: .black.opacity(palette.containerShadowOpacity),
                     radius: SwitcherVisualStyle.containerShadowRadius,
                     y: SwitcherVisualStyle.containerShadowYOffset
                 )
@@ -264,6 +289,7 @@ private struct SwitcherOverlayView: View {
                     SwitcherTileView(
                         item: item,
                         isSelected: item.id == selectedWindowID,
+                        palette: palette,
                         onHoverWindow: onHoverWindow,
                         onClickWindow: onClickWindow
                     )
@@ -273,7 +299,6 @@ private struct SwitcherOverlayView: View {
             .padding(SwitcherLayout.panelPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -282,6 +307,7 @@ private struct SwitcherTileView: View {
 
     let item: SwitcherDisplayItem
     let isSelected: Bool
+    let palette: SwitcherPalette
     let onHoverWindow: (UInt32) -> Void
     let onClickWindow: (UInt32) -> Void
 
@@ -289,7 +315,7 @@ private struct SwitcherTileView: View {
         VStack(alignment: .leading, spacing: 8) {
             preview
                 .frame(width: 138, height: 86)
-                .background(Color.black.opacity(0.28))
+                .background(Color.black.opacity(palette.previewBackdropOpacity))
                 .clipShape(RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous))
 
             HStack(spacing: 7) {
@@ -309,7 +335,7 @@ private struct SwitcherTileView: View {
                             )
                         )
                         .lineLimit(1)
-                        .foregroundStyle(Color.white.opacity(SwitcherVisualStyle.titleOpacity))
+                        .foregroundStyle(palette.inkColor.opacity(palette.titleOpacity))
 
                     Text(item.window.applicationName)
                         .font(
@@ -321,7 +347,7 @@ private struct SwitcherTileView: View {
                         )
                         .lineLimit(1)
                         .foregroundStyle(
-                            Color.white.opacity(SwitcherVisualStyle.applicationNameOpacity)
+                            palette.inkColor.opacity(palette.applicationNameOpacity)
                         )
                 }
             }
@@ -332,7 +358,7 @@ private struct SwitcherTileView: View {
             RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
                 .fill(
                     isSelected
-                        ? Color.white.opacity(SwitcherVisualStyle.selectedFillOpacity)
+                        ? palette.inkColor.opacity(palette.selectedFillOpacity)
                         : Color.clear
                 )
         )
@@ -340,7 +366,7 @@ private struct SwitcherTileView: View {
             if isSelected {
                 RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius, style: .continuous)
                     .strokeBorder(
-                        Color.white.opacity(SwitcherVisualStyle.selectedEdgeOpacity),
+                        palette.inkColor.opacity(palette.selectedEdgeOpacity),
                         lineWidth: SwitcherVisualStyle.selectedEdgeLineWidth
                     )
             }
@@ -374,10 +400,7 @@ private struct SwitcherTileView: View {
         } else if let icon = item.icon {
             ZStack {
                 LinearGradient(
-                    colors: [
-                        Color(red: 0.09, green: 0.10, blue: 0.11),
-                        Color(red: 0.18, green: 0.20, blue: 0.20),
-                    ],
+                    colors: palette.iconPlaceholderGradient.colors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -389,10 +412,7 @@ private struct SwitcherTileView: View {
             }
         } else {
             LinearGradient(
-                colors: [
-                    Color(red: 0.10, green: 0.12, blue: 0.12),
-                    Color(red: 0.20, green: 0.22, blue: 0.20),
-                ],
+                colors: palette.previewPlaceholderGradient.colors,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -407,7 +427,7 @@ private struct SwitcherTileView: View {
                 .scaledToFit()
         } else {
             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.white.opacity(0.18))
+                .fill(palette.inkColor.opacity(palette.missingIconOpacity))
         }
     }
 }

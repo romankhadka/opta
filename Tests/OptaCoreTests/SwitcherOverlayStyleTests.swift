@@ -22,26 +22,41 @@ struct SwitcherOverlayStyleTests {
         #expect(!overlaySource.contains(": Color.white.opacity(0.07)"))
     }
 
-    @Test("defines the Quiet Glass visual tokens")
-    func definesQuietGlassVisualTokens() throws {
+    @Test("defines the appearance-independent Quiet Glass tokens")
+    func definesAppearanceIndependentQuietGlassTokens() throws {
         let overlaySource = try source(at: "Sources/Opta/SwitcherOverlayController.swift")
 
         #expect(overlaySource.contains("private enum SwitcherVisualStyle"))
-        #expect(overlaySource.contains("static let containerEdgeOpacity = 0.12"))
-        #expect(overlaySource.contains("static let containerShadowOpacity = 0.28"))
         #expect(overlaySource.contains("static let containerShadowRadius: CGFloat = 20"))
         #expect(overlaySource.contains("static let containerShadowYOffset: CGFloat = 10"))
-        #expect(overlaySource.contains("static let selectedFillOpacity = 0.10"))
-        #expect(overlaySource.contains("static let selectedEdgeOpacity = 0.30"))
         #expect(overlaySource.contains("static let selectedEdgeLineWidth: CGFloat = 1"))
         #expect(overlaySource.contains("static let selectedScale: CGFloat = 1.012"))
         #expect(overlaySource.contains("static let selectionAnimationDuration = 0.11"))
         #expect(overlaySource.contains("static let titleFontSize: CGFloat = 12.5"))
-        #expect(overlaySource.contains("static let titleOpacity = 0.96"))
         #expect(overlaySource.contains("static let applicationFontSize: CGFloat = 10.5"))
-        #expect(overlaySource.contains("static let applicationNameOpacity = 0.50"))
         #expect(overlaySource.contains("static let applicationIconSize: CGFloat = 20"))
-        #expect(overlaySource.contains(".environment(\\.colorScheme, .dark)"))
+    }
+
+    /// The appearance-dependent tokens live in `SwitcherPalette` and are
+    /// asserted as values in `SwitcherPaletteTests`. What matters here is that
+    /// the view reads them from the environment rather than pinning a color.
+    @Test("takes its colors from the system appearance")
+    func takesItsColorsFromTheSystemAppearance() throws {
+        let overlaySource = try source(at: "Sources/Opta/SwitcherOverlayController.swift")
+
+        #expect(overlaySource.contains("@Environment(\\.colorScheme) private var colorScheme"))
+        #expect(
+            overlaySource.contains(
+                "SwitcherPalette.palette(forDarkAppearance: colorScheme == .dark)"
+            )
+        )
+        #expect(!overlaySource.contains(".environment(\\.colorScheme, .dark)"))
+
+        // Every tinted mark draws in the palette's ink. The only literal colors
+        // left are the container shadow and the preview backdrop, which are
+        // recesses and stay black in both appearances.
+        #expect(!overlaySource.contains(".white.opacity("))
+        #expect(overlaySource.components(separatedBy: ".black.opacity(").count == 3)
     }
 
     @Test("guards selection motion with Reduce Motion")
