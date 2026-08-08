@@ -43,31 +43,15 @@ struct WindowActivator {
         let focusMeasurement = PerformanceMetrics.begin("WindowFocusActions")
         defer { PerformanceMetrics.end(focusMeasurement) }
 
-        for step in WindowActivationPlan.steps {
-            switch step {
-            case .raiseWindow:
-                AXUIElementPerformAction(accessibilityWindow, kAXRaiseAction as CFString)
-            case .focusWindow:
-                focus(accessibilityWindow, in: accessibilityApplication)
-            case .activateApplication:
-                application.activate(options: [])
-            }
-        }
+        WindowActivationPlan.activate(
+            using: AccessibilityWindowActivationPerformer(
+                window: accessibilityWindow,
+                accessibilityApplication: accessibilityApplication,
+                application: application
+            )
+        )
 
         return true
-    }
-
-    private func focus(_ window: AXUIElement, in application: AXUIElement) {
-        AXUIElementSetAttributeValue(
-            application,
-            kAXMainWindowAttribute as CFString,
-            window
-        )
-        AXUIElementSetAttributeValue(
-            application,
-            kAXFocusedWindowAttribute as CFString,
-            window
-        )
     }
 
     private func findWindow(matching window: WindowSnapshot, in application: AXUIElement) -> AXUIElement? {
@@ -252,4 +236,31 @@ struct WindowActivator {
 private struct AccessibilityWindowCandidate {
     let window: AXUIElement
     let candidate: WindowActivationCandidate
+}
+
+private struct AccessibilityWindowActivationPerformer: WindowActivationPerforming {
+    let window: AXUIElement
+    let accessibilityApplication: AXUIElement
+    let application: NSRunningApplication
+
+    func raiseWindow() {
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    }
+
+    func focusWindow() {
+        AXUIElementSetAttributeValue(
+            accessibilityApplication,
+            kAXMainWindowAttribute as CFString,
+            window
+        )
+        AXUIElementSetAttributeValue(
+            accessibilityApplication,
+            kAXFocusedWindowAttribute as CFString,
+            window
+        )
+    }
+
+    func activateApplication() {
+        application.activate(options: [])
+    }
 }
