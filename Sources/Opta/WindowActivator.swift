@@ -43,15 +43,16 @@ struct WindowActivator {
         let focusMeasurement = PerformanceMetrics.begin("WindowFocusActions")
         defer { PerformanceMetrics.end(focusMeasurement) }
 
-        application.activate(options: [])
-        AXUIElementSetAttributeValue(
-            accessibilityApplication,
-            kAXFrontmostAttribute as CFString,
-            kCFBooleanTrue
-        )
-        focus(accessibilityWindow, in: accessibilityApplication)
-        AXUIElementPerformAction(accessibilityWindow, kAXRaiseAction as CFString)
-        focus(accessibilityWindow, in: accessibilityApplication)
+        for step in WindowActivationPlan.steps {
+            switch step {
+            case .raiseWindow:
+                AXUIElementPerformAction(accessibilityWindow, kAXRaiseAction as CFString)
+            case .focusWindow:
+                focus(accessibilityWindow, in: accessibilityApplication)
+            case .activateApplication:
+                application.activate(options: [])
+            }
+        }
 
         return true
     }
