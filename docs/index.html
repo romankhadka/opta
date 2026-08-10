@@ -147,6 +147,8 @@ a { color: inherit; }
 .hero-lede { font-size: clamp(1.1rem, 2.3vw, 1.35rem); color: var(--ink-dim); max-width: var(--measure); line-height: 1.5; }
 
 .hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.hero-note { font-size: 0.85rem; color: var(--ink-faint); }
+.hero-note a { color: var(--ink-dim); }
 .button {
   display: inline-flex; align-items: center; gap: 0.5rem;
   padding: 0.72rem 1.15rem; border-radius: 0.7rem;
@@ -399,6 +401,24 @@ kbd {
 .terminal-bar i { width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--hairline-firm); display: block; }
 .terminal pre { margin: 0; padding: 1.15rem 1.2rem; overflow-x: auto; font-family: var(--mono); font-size: 0.88rem; line-height: 1.8; color: var(--ink); }
 .terminal .c { color: var(--ink-faint); }
+.terminal.compact pre { padding: 0.85rem 1rem; font-size: 0.8rem; line-height: 1.5; }
+
+/* Two ways in, side by side, because the trade-off between them is the
+   whole point: convenience against a Gatekeeper prompt. */
+.install-paths { display: grid; gap: 1.25rem; align-items: start; }
+@media (min-width: 52rem) { .install-paths { grid-template-columns: 1fr 1fr; } }
+.install-path {
+  display: flex; flex-direction: column; gap: 0.9rem; align-items: flex-start;
+  border: 1px solid var(--hairline); border-radius: 1rem;
+  padding: 1.5rem 1.4rem; background: var(--surface);
+}
+.install-path.lead { border-color: var(--accent); }
+.install-path h3 { font-size: 1.15rem; letter-spacing: -0.02em; }
+.install-path .terminal { width: 100%; }
+.install-copy { color: var(--ink-dim); font-size: 0.95rem; }
+.install-fine { color: var(--ink-faint); font-size: 0.85rem; line-height: 1.5; }
+.install-fine strong { color: var(--ink-dim); }
+.install-fine a { color: var(--ink-dim); }
 
 footer { border-top: 1px solid var(--hairline); padding-block: 2.5rem 3.5rem; color: var(--ink-faint); font-size: 0.88rem; }
 .footer-row { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; }
@@ -435,7 +455,7 @@ footer a:hover { color: var(--ink); }
       <a href="#speed">Speed</a>
       <a href="#shortcuts">Shortcuts</a>
       <a href="#order">Ordering</a>
-      <a href="#install">Install</a>
+      <a href="#install">Download</a>
     </nav>
   </header>
 
@@ -445,9 +465,11 @@ footer a:hover { color: var(--ink); }
       <h1>Hold <span class="key">⌥</span>. Pick a window. Let go.</h1>
       <p class="hero-lede">Opta cycles every window on your Mac from one key you are already resting a thumb on. The overlay draws in <strong>0.274&nbsp;ms</strong> — roughly three percent of a ProMotion frame — so the list is simply there.</p>
       <div class="hero-actions">
-        <a class="button button-primary" href="#install">Build it now</a>
+        <a class="button button-primary" href="https://github.com/romankhadka/opta/releases/latest">Download for macOS</a>
+        <a class="button button-quiet" href="#install">Build from source</a>
         <a class="button button-quiet" href="https://github.com/romankhadka/opta">View source</a>
       </div>
+      <p class="hero-note">Universal build for Apple Silicon and Intel · macOS 14 or newer · <a href="https://github.com/romankhadka/opta/releases">all releases</a></p>
     </div>
 
     <div class="stage" id="stage" data-open="false">
@@ -597,20 +619,44 @@ footer a:hover { color: var(--ink); }
   <div class="shell">
     <div class="section-head">
       <p class="eyebrow">Install</p>
-      <h2>Two commands</h2>
-      <p>Opta builds from source with the Swift toolchain that ships with Xcode. The build script assembles the app bundle and signs it for local use.</p>
+      <h2>Download it, or build it</h2>
+      <p>Every tagged version is built, tested, and published on GitHub as a universal binary. Building it yourself takes two commands and skips one macOS annoyance.</p>
     </div>
-    <div class="terminal">
-      <div class="terminal-bar"><i></i><i></i><i></i></div>
+
+    <div class="install-paths">
+      <div class="install-path lead">
+        <p class="eyebrow">Download</p>
+        <h3>Take the latest release</h3>
+        <p class="install-copy">Grab <code>Opta.zip</code> from the releases page, unzip it, and move <strong>Opta.app</strong> into Applications. It runs on Apple Silicon and Intel.</p>
+        <a class="button button-primary" href="https://github.com/romankhadka/opta/releases/latest">Latest release</a>
+        <p class="install-fine">
+          These builds are signed but <strong>not notarised by Apple</strong>, so macOS quarantines the download and says it cannot verify the developer. One command clears it:
+        </p>
+        <div class="terminal compact">
+<pre>xattr -dr com.apple.quarantine /Applications/Opta.app</pre>
+        </div>
+        <p class="install-fine">Each release carries a different signature, so macOS asks for permissions again after an update. <a href="https://github.com/romankhadka/opta/releases">Browse all releases</a> for checksums and notes.</p>
+      </div>
+
+      <div class="install-path">
+        <p class="eyebrow">Build</p>
+        <h3>Compile from source</h3>
+        <p class="install-copy">The build script assembles the bundle and signs it with a stable local identity, so there is no quarantine prompt and permissions survive every rebuild.</p>
+        <div class="terminal">
+          <div class="terminal-bar"><i></i><i></i><i></i></div>
 <pre><span class="c"># clone and build</span>
 git clone https://github.com/romankhadka/opta.git
 cd opta &amp;&amp; ./scripts/build_app.sh
 
 <span class="c"># run it</span>
 open .build/release/Opta.app</pre>
+        </div>
+        <p class="install-fine">Needs Xcode 26 or its command line tools.</p>
+      </div>
     </div>
-    <p style="margin-top:1.25rem; color:var(--ink-dim); font-size:0.92rem; max-width:var(--measure);">
-      Requires macOS 14 or newer and Xcode 26 or its command line tools. Grant the permissions when prompted, then relaunch so macOS applies them.
+
+    <p style="margin-top:1.75rem; color:var(--ink-dim); font-size:0.92rem; max-width:var(--measure);">
+      Either way: macOS 14 or newer. Grant the permissions when prompted, then relaunch so macOS applies them.
     </p>
   </div>
 </section>
@@ -628,6 +674,7 @@ open .build/release/Opta.app</pre>
       Opta
     </div>
     <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+      <a href="https://github.com/romankhadka/opta/releases">Releases</a>
       <a href="https://github.com/romankhadka/opta">GitHub</a>
       <a href="https://github.com/romankhadka/opta/blob/main/LICENSE">MIT licence</a>
     </div>
