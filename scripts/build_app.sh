@@ -10,6 +10,9 @@ SIGNING_COMMON_NAME="Opta Local Code Signing"
 SIGNING_KEYCHAIN="$HOME/Library/Keychains/opta-local-signing.keychain-db"
 SIGNING_KEYCHAIN_PASSWORD="opta-local-signing"
 SIGNING_WORK_DIR="$ROOT_DIR/.build/signing"
+ICON_DOCUMENT="$ROOT_DIR/Resources/Opta.icon"
+ICON_WORK_DIR="$ROOT_DIR/.build/icon"
+ICTOOL="/Applications/Xcode.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool"
 
 ensure_keychain_in_search_list() {
   if security list-keychains -d user | grep -Fq "$SIGNING_KEYCHAIN"; then
@@ -111,6 +114,73 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 cp "$ROOT_DIR/.build/release/opta" "$MACOS_DIR/opta"
 
+compile_app_icon() {
+  rm -rf "$ICON_WORK_DIR"
+  mkdir -p "$ICON_WORK_DIR"
+
+  # actool turns the Icon Composer document into two things: Assets.car, which
+  # carries the Default, Dark, Tinted, and Clear renditions macOS 26 picks
+  # between, and Opta.icns, the flat fallback macOS 14 and 15 use instead.
+  xcrun actool \
+    --output-format human-readable-text \
+    --notices \
+    --warnings \
+    --app-icon Opta \
+    --output-partial-info-plist "$ICON_WORK_DIR/icon.plist" \
+    --target-device mac \
+    --minimum-deployment-target 14.0 \
+    --platform macosx \
+    --compile "$RESOURCES_DIR" \
+    "$ICON_DOCUMENT" >/dev/null
+
+  if [ ! -f "$RESOURCES_DIR/Assets.car" ] || [ ! -f "$RESOURCES_DIR/Opta.icns" ]; then
+    printf '%s\n' "actool did not produce both Assets.car and Opta.icns" >&2
+    exit 1
+  fi
+}
+
+# actool's own .icns stops at 256 points, so Finder's larger icon sizes would
+# upscale it on the macOS 14 and 15 installs that have no Assets.car to read.
+# Rendering the Default appearance at every size iconutil accepts replaces it
+# with one that stays sharp all the way up.
+build_legacy_icns() {
+  if [ ! -x "$ICTOOL" ]; then
+    printf '%s\n' "ictool not found at $ICTOOL; install Xcode 26 or newer" >&2
+    exit 1
+  fi
+
+  local iconset="$ICON_WORK_DIR/Opta.iconset"
+  mkdir -p "$iconset"
+
+  local size
+  for size in 16 32 64 128 256 512 1024; do
+    "$ICTOOL" "$ICON_DOCUMENT" \
+      --export-image \
+      --output-file "$ICON_WORK_DIR/$size.png" \
+      --platform macOS \
+      --rendition Default \
+      --width "$size" \
+      --height "$size" \
+      --scale 1 >/dev/null
+  done
+
+  cp "$ICON_WORK_DIR/16.png" "$iconset/icon_16x16.png"
+  cp "$ICON_WORK_DIR/32.png" "$iconset/icon_16x16@2x.png"
+  cp "$ICON_WORK_DIR/32.png" "$iconset/icon_32x32.png"
+  cp "$ICON_WORK_DIR/64.png" "$iconset/icon_32x32@2x.png"
+  cp "$ICON_WORK_DIR/128.png" "$iconset/icon_128x128.png"
+  cp "$ICON_WORK_DIR/256.png" "$iconset/icon_128x128@2x.png"
+  cp "$ICON_WORK_DIR/256.png" "$iconset/icon_256x256.png"
+  cp "$ICON_WORK_DIR/512.png" "$iconset/icon_256x256@2x.png"
+  cp "$ICON_WORK_DIR/512.png" "$iconset/icon_512x512.png"
+  cp "$ICON_WORK_DIR/1024.png" "$iconset/icon_512x512@2x.png"
+
+  iconutil --convert icns --output "$RESOURCES_DIR/Opta.icns" "$iconset"
+}
+
+compile_app_icon
+build_legacy_icns
+
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -145,6 +215,10 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+
+# actool reports the icon's bundle keys rather than having them hand-copied, so
+# CFBundleIconName and CFBundleIconFile cannot drift from the document's name.
+/usr/libexec/PlistBuddy -c "Merge $ICON_WORK_DIR/icon.plist" "$CONTENTS_DIR/Info.plist" >/dev/null
 
 codesign \
   --force \

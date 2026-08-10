@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- The Option key glyph, redrawn as a track switch: a through line that
+       branches, and the branch it hands you off to. Stroke centres are placed
+       so the outer bounds (stroke included) are exactly 220..804 horizontally
+       and 308..716 vertically, which centres the mark on the 1024 canvas. -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M268 356 H462 L636 668 H756"/>
+    <path d="M660 356 H756"/>
+  </g>
+</svg>

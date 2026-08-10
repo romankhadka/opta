@@ -31,6 +31,21 @@ open .build/release/Opta.app
 
 The build script creates `.build/release/Opta.app` and ad-hoc signs it for local use.
 
+## Icon
+
+The application icon is the Option key glyph on a blue steel field, kept in
+`Resources/Opta.icon` as an Icon Composer document. `build_app.sh` compiles it
+into the appearance-aware `Assets.car` that macOS 26 renders in Default, Dark,
+Tinted, and Clear, plus an `.icns` for macOS 14 and 15.
+
+```bash
+./scripts/preview_icon.sh
+```
+
+That renders all six appearances to `.build/icon-preview`. It also fails if the
+Dark rendition stops drawing the mark in white — the background colour and the
+mark's colour are linked by a system rule that the design spec explains.
+
 ## Permissions
 
 On first launch, Opta asks macOS for Accessibility, Input Monitoring, and Screen Recording access. If the prompts do not appear, use the menu bar icon:
