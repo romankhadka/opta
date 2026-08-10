@@ -122,12 +122,21 @@ else
   fi
 fi
 
-swift build -c release
+# A release has to run on both Apple Silicon and Intel, since Opta supports
+# macOS 14 and plenty of Intel Macs are still on it. A local build stays single
+# architecture, because a developer only ever runs the one they are sitting at.
+if [ "${OPTA_UNIVERSAL:-0}" = "1" ]; then
+  swift build -c release --arch arm64 --arch x86_64
+  BUILT_BINARY="$ROOT_DIR/.build/apple/Products/Release/opta"
+else
+  swift build -c release
+  BUILT_BINARY="$ROOT_DIR/.build/release/opta"
+fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
-cp "$ROOT_DIR/.build/release/opta" "$MACOS_DIR/opta"
+cp "$BUILT_BINARY" "$MACOS_DIR/opta"
 
 compile_app_icon() {
   rm -rf "$ICON_WORK_DIR"

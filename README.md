@@ -26,7 +26,8 @@ The switcher shows live window previews when Screen Recording permission is avai
 
 ## Download
 
-Grab the latest build from [Releases](https://github.com/romankhadka/opta/releases),
+Grab the latest build from [Releases](https://github.com/romankhadka/opta/releases) —
+a universal build that runs on Apple Silicon and Intel —
 unzip it, and move `Opta.app` to your Applications folder. Each release note says
 whether that build is notarised by Apple; an unnotarised one needs its quarantine
 flag cleared before macOS will open it, and the release note gives the command.

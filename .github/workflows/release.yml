@@ -123,6 +123,7 @@ jobs:
         env:
           OPTA_VERSION: ${{ steps.version.outputs.version }}
           OPTA_BUILD: ${{ github.run_number }}
+          OPTA_UNIVERSAL: "1"
         run: ./scripts/package_release.sh
 
       - name: Write the release notes
@@ -173,7 +174,7 @@ jobs:
           fi
 
           {
-            echo "**Requires macOS 14 or newer.**"
+            echo "**Requires macOS 14 or newer.** Universal build: Apple Silicon and Intel."
             echo
             echo "\`\`\`"
             echo "SHA-256  $checksum"

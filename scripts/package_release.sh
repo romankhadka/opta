@@ -41,6 +41,16 @@ if [ -n "${OPTA_SIGNING_IDENTITY:-}" ] && [ "${OPTA_SIGNING_IDENTITY}" != "-" ];
   fi
 fi
 
+if [ "${OPTA_UNIVERSAL:-0}" = "1" ]; then
+  log "Confirming the binary carries both architectures"
+  for architecture in arm64 x86_64; do
+    if ! lipo -archs "$APP_PATH/Contents/MacOS/opta" | tr ' ' '\n' | grep -qx "$architecture"; then
+      printf '%s\n' "Packaged binary is missing the $architecture slice" >&2
+      exit 1
+    fi
+  done
+fi
+
 log "Confirming the icon survived into the bundle"
 for resource in Assets.car Opta.icns; do
   if [ ! -f "$APP_PATH/Contents/Resources/$resource" ]; then
