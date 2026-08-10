@@ -10,7 +10,7 @@
 <p align="center">Hold Option. Pick a window. Let go.</p>
 
 <p align="center">
-  <a href="https://romankhadka.github.io/opta/"><strong>Website</strong></a> ·
+  <a href="https://opta.romn.dev"><strong>opta.romn.dev</strong></a> ·
   <a href="https://github.com/romankhadka/opta/releases/latest"><strong>Download</strong></a>
 </p>
 
@@ -62,9 +62,13 @@ the machine, which is why a build made this way cannot be handed to anyone else.
 
 ## Landing page
 
-Live at [romankhadka.github.io/opta](https://romankhadka.github.io/opta/), served
-by GitHub Pages from the `docs` folder on `main`. Editing `docs/index.html` and
-pushing to `main` redeploys it.
+Live at [opta.romn.dev](https://opta.romn.dev), served by GitHub Pages from the
+`docs` folder on `main`. Editing `docs/index.html` and pushing to `main`
+redeploys it.
+
+The domain is a `CNAME` from `opta` to `romankhadka.github.io` in the `romn.dev`
+zone, and `docs/CNAME` is what tells Pages to answer on it. Deleting that file
+would drop the site back to `romankhadka.github.io/opta/`.
 
 The page carries an interactive switcher demo built from the shipped Quiet Glass
 tokens, so the panel on the page is the panel in the app, down to the tile
