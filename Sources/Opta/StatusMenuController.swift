@@ -27,7 +27,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         self.onCurrentApplicationShortcutChanged = onCurrentApplicationShortcutChanged
         super.init()
 
-        statusItem.button?.image = NSImage(systemSymbolName: "rectangle.2.swap", accessibilityDescription: "Opta")
+        statusItem.button?.image = OptionMarkImage.menuBar()
         statusItem.button?.imagePosition = .imageOnly
         statusItem.menu = makeMenu()
     }

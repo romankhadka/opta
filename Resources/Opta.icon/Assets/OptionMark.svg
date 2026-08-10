@@ -4,7 +4,7 @@
        so the outer bounds (stroke included) are exactly 220..804 horizontally
        and 308..716 vertically, which centres the mark on the 1024 canvas. -->
   <g fill="none" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M268 356 H462 L636 668 H756"/>
-    <path d="M660 356 H756"/>
+    <path d="M268 356 L462 356 L636 668 L756 668"/>
+    <path d="M660 356 L756 356"/>
   </g>
 </svg>
