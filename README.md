@@ -9,6 +9,11 @@
 
 <p align="center">Hold Option. Pick a window. Let go.</p>
 
+<p align="center">
+  <a href="https://romankhadka.github.io/opta/"><strong>Website</strong></a> ·
+  <a href="https://github.com/romankhadka/opta/releases/latest"><strong>Download</strong></a>
+</p>
+
 ---
 
 Opta is a native macOS window switcher for people who want Option-based cycling:
@@ -57,9 +62,13 @@ the machine, which is why a build made this way cannot be handed to anyone else.
 
 ## Landing page
 
-`docs/index.html`, ready to serve from GitHub Pages with the Pages source set to
-the `docs` folder on `main`. It carries an interactive switcher demo built from
-the shipped Quiet Glass tokens, so the panel on the page is the panel in the app.
+Live at [romankhadka.github.io/opta](https://romankhadka.github.io/opta/), served
+by GitHub Pages from the `docs` folder on `main`. Editing `docs/index.html` and
+pushing to `main` redeploys it.
+
+The page carries an interactive switcher demo built from the shipped Quiet Glass
+tokens, so the panel on the page is the panel in the app, down to the tile
+geometry and the light and dark palettes.
 
 ## Releases
 
