@@ -65,9 +65,16 @@ the shipped Quiet Glass tokens, so the panel on the page is the panel in the app
 Tagging a commit `vX.Y.Z` and pushing the tag runs `.github/workflows/release.yml`,
 which tests, builds, packages, and publishes the zip to a GitHub release.
 
+Without a Developer ID the workflow signs the app ad-hoc. It runs, but macOS
+quarantines the download and treats each release as a different app, so
+permissions have to be granted again after every update. CI cannot use the
+self-signed local identity instead: creating it calls
+`security add-trusted-cert`, which waits on an authorisation prompt that a
+runner can never answer.
+
 To make those downloads open without a Gatekeeper warning, add these repository
 secrets; the workflow signs and notarises only when they are all present, and
-falls back to an unnotarised build otherwise.
+falls back to the ad-hoc build otherwise.
 
 | Secret | What it holds |
 | --- | --- |

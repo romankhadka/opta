@@ -33,9 +33,9 @@ fi
 log "Verifying the signature"
 codesign --verify --strict --deep "$APP_PATH"
 
-if [ -n "${OPTA_SIGNING_IDENTITY:-}" ]; then
-  # Only a Developer ID signature can satisfy this; the local identity fails it,
-  # which is exactly the distinction that matters for a download.
+if [ -n "${OPTA_SIGNING_IDENTITY:-}" ] && [ "${OPTA_SIGNING_IDENTITY}" != "-" ]; then
+  # Only a Developer ID signature can satisfy this; an ad-hoc or self-signed one
+  # never will, which is exactly the distinction that matters for a download.
   if ! spctl --assess --type execute "$APP_PATH" 2>/dev/null; then
     log "Gatekeeper does not accept this build yet (expected before notarisation)"
   fi

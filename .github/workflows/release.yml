@@ -111,6 +111,14 @@ jobs:
             --keychain "$SIGNING_KEYCHAIN"
           echo "OPTA_NOTARY_PROFILE=opta-notary" >> "$GITHUB_ENV"
 
+      - name: Fall back to an ad-hoc signature
+        if: env.HAS_SIGNING_CERT != 'true'
+        run: |
+          # Anything other than an explicit identity sends the build script down
+          # its local-certificate path, where `security add-trusted-cert` waits
+          # on an authorisation prompt that never comes.
+          echo "OPTA_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+
       - name: Package
         env:
           OPTA_VERSION: ${{ steps.version.outputs.version }}

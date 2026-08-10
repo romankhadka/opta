@@ -17,6 +17,12 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 20
 
+    env:
+      # Without this the build script would try to mint its self-signed local
+      # identity, and `security add-trusted-cert` would block forever waiting
+      # for an authorisation prompt no one is there to answer.
+      OPTA_SIGNING_IDENTITY: "-"
+
     steps:
       - uses: actions/checkout@v5
 

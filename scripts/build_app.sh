@@ -7,6 +7,9 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 SIGNING_COMMON_NAME="Opta Local Code Signing"
+# codesign's spelling for an ad-hoc signature, kept as a name so the comparisons
+# below read as intent rather than as a bare dash.
+ADHOC_IDENTITY="-"
 SIGNING_KEYCHAIN="$HOME/Library/Keychains/opta-local-signing.keychain-db"
 SIGNING_KEYCHAIN_PASSWORD="opta-local-signing"
 SIGNING_WORK_DIR="$ROOT_DIR/.build/signing"
@@ -103,6 +106,10 @@ OPENSSL
 # A release is signed with a Developer ID so that Gatekeeper and notarisation
 # have something to trust. Everything else keeps the self-signed local identity,
 # which never leaves this machine.
+#
+# Creating that local identity calls `security add-trusted-cert`, which asks the
+# window server for authorisation and therefore blocks forever on a machine with
+# no one at the keyboard. CI passes an identity in to skip the whole path.
 if [ -n "${OPTA_SIGNING_IDENTITY:-}" ]; then
   SIGNING_IDENTITY="$OPTA_SIGNING_IDENTITY"
   SIGNING_KEYCHAIN="${OPTA_SIGNING_KEYCHAIN:-$SIGNING_KEYCHAIN}"
@@ -240,11 +247,16 @@ if [ -n "${OPTA_VERSION:-}" ]; then
     "$CONTENTS_DIR/Info.plist" >/dev/null
 fi
 
-CODESIGN_FLAGS=(--force --deep --keychain "$SIGNING_KEYCHAIN" --sign "$SIGNING_IDENTITY")
-if [ -n "${OPTA_SIGNING_IDENTITY:-}" ]; then
-  # Notarisation rejects a bundle that lacks the hardened runtime or a secure
-  # timestamp, so a distribution identity gets both.
-  CODESIGN_FLAGS+=(--options runtime --timestamp)
+CODESIGN_FLAGS=(--force --deep --sign "$SIGNING_IDENTITY")
+if [ "$SIGNING_IDENTITY" != "$ADHOC_IDENTITY" ]; then
+  CODESIGN_FLAGS+=(--keychain "$SIGNING_KEYCHAIN")
+
+  if [ -n "${OPTA_SIGNING_IDENTITY:-}" ]; then
+    # Notarisation rejects a bundle that lacks the hardened runtime or a secure
+    # timestamp. An ad-hoc signature can carry neither, which is why this is
+    # tied to a real identity.
+    CODESIGN_FLAGS+=(--options runtime --timestamp)
+  fi
 fi
 
 codesign "${CODESIGN_FLAGS[@]}" "$APP_DIR" >/dev/null
