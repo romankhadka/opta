@@ -1,5 +1,10 @@
 # Opta
 
+Landing page: `docs/index.html`, ready to serve from GitHub Pages with the
+Pages source set to the `docs` folder on `main`. It carries an interactive
+switcher demo built from the shipped Quiet Glass tokens, so the panel on the
+page is the panel in the app.
+
 Opta is a native macOS window switcher for people who want Option-based cycling:
 
 - `Option` + `Tab` cycles through visible windows from all applications.

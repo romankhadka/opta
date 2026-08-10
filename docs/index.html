@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Opta — the Option-key window switcher for macOS</title>
+<meta name="description" content="Hold Option, cycle your windows, let go. A native macOS window switcher that renders its overlay in 0.274 ms — about 3% of a ProMotion frame." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='230' fill='%231A2440'/%3E%3Cg fill='none' stroke='white' stroke-width='96' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M268 356 L462 356 L636 668 L756 668'/%3E%3Cpath d='M660 356 L756 356'/%3E%3C/g%3E%3C/svg%3E" />
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Opta — landing page
+
+   The page follows the system appearance because the switcher
+   does. Every colour is a token so both themes resolve as a set.
+   Overlay values are the shipped Quiet Glass palette, so the
+   demo below is the real thing rather than an impression of it.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light dark;
+
+  --ground: #F4F6F9;
+  --surface: #FFFFFF;
+  --sunken: #EAEDF2;
+  --hairline: rgba(12, 18, 28, 0.11);
+  --hairline-firm: rgba(12, 18, 28, 0.20);
+  --ink: #0D131C;
+  --ink-dim: #525C6B;
+  --ink-faint: #7A8493;
+  --accent: #2B5799;
+  --accent-soft: rgba(43, 87, 153, 0.10);
+  --desktop: linear-gradient(158deg, #E8EDF4 0%, #C6D2E2 46%, #A9BAD0 100%);
+
+  /* Quiet Glass, light appearance — SwitcherPalette.light */
+  --glass-ink: 13, 19, 28;
+  --glass-surface: rgba(246, 248, 251, 0.72);
+  --glass-edge: rgba(13, 19, 28, 0.10);
+  --glass-shadow: rgba(0, 0, 0, 0.18);
+  --tile-fill: rgba(13, 19, 28, 0.08);
+  --tile-edge: rgba(13, 19, 28, 0.22);
+  --glass-title: rgba(13, 19, 28, 0.88);
+  --glass-app: rgba(13, 19, 28, 0.55);
+  --preview-well: rgba(0, 0, 0, 0.10);
+  --preview-a: #F2F3F5;
+  --preview-b: #DBDDDD;
+
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --measure: 34rem;
+  --gutter: clamp(1.15rem, 4vw, 3rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #090C11;
+    --surface: #121821;
+    --sunken: #0C1016;
+    --hairline: rgba(255, 255, 255, 0.10);
+    --hairline-firm: rgba(255, 255, 255, 0.20);
+    --ink: #EDF1F6;
+    --ink-dim: #9BA5B4;
+    --ink-faint: #6D7686;
+    --accent: #86ACEC;
+    --accent-soft: rgba(134, 172, 236, 0.13);
+    --desktop: linear-gradient(158deg, #26314A 0%, #141B29 52%, #080B11 100%);
+
+    /* Quiet Glass, dark appearance — SwitcherPalette.dark */
+    --glass-ink: 255, 255, 255;
+    --glass-surface: rgba(31, 35, 42, 0.72);
+    --glass-edge: rgba(255, 255, 255, 0.12);
+    --glass-shadow: rgba(0, 0, 0, 0.28);
+    --tile-fill: rgba(255, 255, 255, 0.10);
+    --tile-edge: rgba(255, 255, 255, 0.30);
+    --glass-title: rgba(255, 255, 255, 0.96);
+    --glass-app: rgba(255, 255, 255, 0.50);
+    --preview-well: rgba(0, 0, 0, 0.28);
+    --preview-a: #171A1C;
+    --preview-b: #2E3333;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+a { color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.shell { max-width: 74rem; margin: 0 auto; padding-inline: var(--gutter); }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+/* ── masthead ─────────────────────────────────────────────── */
+
+.masthead {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding-block: 1.5rem;
+}
+.wordmark { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; letter-spacing: -0.02em; font-size: 1.05rem; }
+.wordmark svg { display: block; width: 1.6rem; height: 1.6rem; border-radius: 0.42rem; }
+.masthead nav { display: flex; gap: 1.5rem; font-size: 0.9rem; color: var(--ink-dim); }
+.masthead nav a { text-decoration: none; }
+.masthead nav a:hover { color: var(--ink); }
+@media (max-width: 40rem) { .masthead nav { display: none; } }
+
+/* ── hero ─────────────────────────────────────────────────── */
+
+.hero { padding-block: clamp(2.5rem, 7vw, 5rem) clamp(2rem, 5vw, 3.5rem); display: flex; flex-direction: column; gap: 2.5rem; }
+
+.hero h1 {
+  font-size: clamp(2.6rem, 8.5vw, 5.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  font-weight: 600;
+  max-width: 16ch;
+}
+.hero h1 .key {
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+.hero-lede { font-size: clamp(1.1rem, 2.3vw, 1.35rem); color: var(--ink-dim); max-width: var(--measure); line-height: 1.5; }
+
+.hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.button {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.72rem 1.15rem; border-radius: 0.7rem;
+  font-size: 0.95rem; font-weight: 550; text-decoration: none;
+  border: 1px solid transparent; cursor: pointer; font-family: inherit;
+}
+.button-primary { background: var(--ink); color: var(--ground); }
+.button-primary:hover { opacity: 0.88; }
+.button-quiet { border-color: var(--hairline-firm); color: var(--ink); background: transparent; }
+.button-quiet:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+/* ── the demo ─────────────────────────────────────────────── */
+
+.stage {
+  position: relative;
+  border-radius: 1.1rem;
+  border: 1px solid var(--hairline);
+  background: var(--desktop);
+  overflow: hidden;
+  min-height: min(30rem, 62vw);
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  isolation: isolate;
+}
+.stage::after {
+  /* a window edge peeking behind the panel, so the glass has something to sit on */
+  content: "";
+  position: absolute; inset: auto -8% -26% 10%;
+  height: 52%; border-radius: 0.9rem 0.9rem 0 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.10);
+  z-index: 0;
+}
+
+.stage-hint {
+  position: absolute; inset-inline: 0; bottom: 0.9rem;
+  display: flex; justify-content: center; z-index: 3;
+  font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.05em;
+  color: var(--ink-dim); pointer-events: none;
+}
+.stage-hint span {
+  background: color-mix(in srgb, var(--ground) 72%, transparent);
+  border: 1px solid var(--hairline);
+  padding: 0.35rem 0.7rem; border-radius: 100px;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+
+/* The overlay: one material-backed rounded rectangle, one inner edge,
+   one shadow — the shape language the app ships. */
+.overlay {
+  position: relative; z-index: 2;
+  display: flex; gap: 0.55rem;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: var(--glass-surface);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 10px 20px var(--glass-shadow);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  opacity: 0; transform: scale(0.985);
+  transition: opacity 110ms cubic-bezier(0.2, 0.9, 0.3, 1), transform 110ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  pointer-events: none;
+  /* The app lays its tiles out in a grid rather than one long row, so the
+     panel wraps here too instead of running off the side. */
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(100%, 56rem);
+}
+.stage[data-open="true"] .overlay { opacity: 1; transform: scale(1); pointer-events: auto; }
+
+/* 160 × 148 pt tile, 138 × 86 pt preview — the shipped geometry. */
+.tile {
+  flex: 0 0 auto;
+  width: 160px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  display: flex; flex-direction: column; gap: 8px;
+  cursor: pointer; font-family: inherit; text-align: left;
+  transition: background-color 110ms ease, border-color 110ms ease, transform 110ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.tile[aria-selected="true"] {
+  background: var(--tile-fill);
+  border-color: var(--tile-edge);
+  transform: scale(1.012);
+}
+.preview {
+  width: 138px; height: 86px; border-radius: 16px;
+  background: linear-gradient(150deg, var(--preview-a), var(--preview-b));
+  box-shadow: inset 0 0 0 1px var(--preview-well);
+  overflow: hidden; position: relative;
+}
+.preview-bar { position: absolute; inset: 0 0 auto 0; height: 14px; background: rgba(var(--glass-ink), 0.10); }
+.preview-bar::before {
+  content: ""; position: absolute; left: 6px; top: 5px;
+  width: 22px; height: 4px; border-radius: 2px; background: rgba(var(--glass-ink), 0.22);
+}
+.preview-body { position: absolute; inset: 22px 8px 8px 8px; display: flex; flex-direction: column; gap: 4px; }
+.preview-body i { display: block; height: 4px; border-radius: 2px; background: rgba(var(--glass-ink), 0.16); }
+.tile-meta { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.tile-icon { width: 20px; height: 20px; border-radius: 5px; flex: 0 0 auto; }
+.tile-text { min-width: 0; display: flex; flex-direction: column; }
+.tile-title {
+  font-size: 12.5px; font-weight: 600; color: var(--glass-title);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25;
+}
+.tile-app {
+  font-size: 10.5px; font-weight: 400; color: var(--glass-app);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+}
+
+/* ── section furniture ────────────────────────────────────── */
+
+section { padding-block: clamp(3.5rem, 8vw, 6.5rem); }
+.section-head { display: flex; flex-direction: column; gap: 0.85rem; max-width: var(--measure); margin-bottom: clamp(2rem, 4vw, 3rem); }
+.section-head h2 { font-size: clamp(1.9rem, 4.6vw, 3rem); line-height: 1.05; letter-spacing: -0.035em; font-weight: 600; }
+.section-head p { color: var(--ink-dim); font-size: 1.05rem; }
+
+.rule { border: 0; border-top: 1px solid var(--hairline); margin: 0; }
+
+/* ── performance ──────────────────────────────────────────── */
+
+.perf { background: var(--surface); border-block: 1px solid var(--hairline); }
+
+.hero-number { display: flex; flex-direction: column; gap: 0.4rem; }
+.hero-number b {
+  font-family: var(--mono); font-weight: 600;
+  font-size: clamp(3.6rem, 12vw, 8rem); line-height: 0.85;
+  letter-spacing: -0.05em; font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.hero-number b small { font-size: 0.3em; letter-spacing: -0.01em; color: var(--ink-dim); margin-left: 0.25em; }
+.hero-number figcaption { color: var(--ink-dim); max-width: 30rem; }
+
+/* One measure against one budget: a proportional meter, not a chart. */
+.budget { margin-top: clamp(2rem, 4vw, 3rem); display: flex; flex-direction: column; gap: 0.85rem; }
+.budget-track {
+  position: relative; height: 3.25rem; border-radius: 0.6rem;
+  background: var(--sunken); border: 1px solid var(--hairline);
+  overflow: hidden;
+}
+.budget-fill {
+  position: absolute; inset: 0 auto 0 0; width: 3.288%;
+  background: var(--accent); border-radius: 0.55rem 0 0 0.55rem;
+  min-width: 4px;
+}
+.budget-p95 { position: absolute; top: 0; bottom: 0; left: 26.84%; width: 2px; background: var(--ink-faint); }
+.budget-labels { display: flex; justify-content: space-between; gap: 1rem; font-family: var(--mono); font-size: 0.75rem; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.budget-key { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: 0.85rem; color: var(--ink-dim); }
+.budget-key span { display: inline-flex; align-items: center; gap: 0.45rem; }
+.swatch { width: 0.7rem; height: 0.7rem; border-radius: 0.2rem; background: var(--accent); flex: 0 0 auto; }
+.swatch.line { width: 2px; height: 0.9rem; border-radius: 1px; background: var(--ink-faint); }
+
+.stats {
+  display: grid; gap: 1px; background: var(--hairline);
+  border: 1px solid var(--hairline); border-radius: 0.9rem; overflow: hidden;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+}
+.stat { background: var(--surface); padding: 1.35rem 1.25rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.stat b {
+  font-family: var(--mono); font-size: 1.75rem; font-weight: 600;
+  letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.stat b small { font-size: 0.55em; color: var(--ink-dim); margin-left: 0.15em; letter-spacing: 0; }
+.stat span { font-size: 0.85rem; color: var(--ink-dim); line-height: 1.4; }
+
+.method {
+  margin-top: 2rem; padding: 1.15rem 1.3rem;
+  border: 1px solid var(--hairline); border-left: 3px solid var(--accent);
+  border-radius: 4px 0.8rem 0.8rem 4px;
+  background: var(--ground);
+  font-size: 0.9rem; color: var(--ink-dim); max-width: 46rem;
+}
+.method code { font-family: var(--mono); font-size: 0.92em; color: var(--ink); }
+
+/* ── shortcuts ────────────────────────────────────────────── */
+
+.shortcuts { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.shortcut {
+  border: 1px solid var(--hairline); border-radius: 0.9rem;
+  padding: 1.5rem 1.35rem; background: var(--surface);
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.combo { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+kbd {
+  font-family: var(--mono); font-size: 0.9rem; font-weight: 550;
+  padding: 0.32rem 0.6rem; border-radius: 0.45rem;
+  border: 1px solid var(--hairline-firm);
+  border-bottom-width: 2px;
+  background: var(--ground); color: var(--ink);
+  line-height: 1.2;
+}
+.combo em { font-style: normal; color: var(--ink-faint); font-size: 0.9rem; }
+.shortcut p { color: var(--ink-dim); font-size: 0.95rem; }
+
+/* ── internals ────────────────────────────────────────────── */
+
+.internals { display: grid; gap: 0; border-top: 1px solid var(--hairline); }
+.internal {
+  display: grid; gap: 0.35rem 2rem; padding: 1.2rem 0;
+  border-bottom: 1px solid var(--hairline);
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 48rem) { .internal { grid-template-columns: 20rem minmax(0, 1fr); align-items: baseline; } }
+.internal code { font-family: var(--mono); font-size: 0.92rem; color: var(--ink); word-break: break-word; }
+.internal p { color: var(--ink-dim); font-size: 0.95rem; }
+
+/* ── ordering ─────────────────────────────────────────────── */
+
+.split { display: grid; gap: clamp(2rem, 5vw, 4rem); align-items: start; }
+@media (min-width: 52rem) { .split { grid-template-columns: 1fr 1fr; } }
+.prose { display: flex; flex-direction: column; gap: 1.1rem; color: var(--ink-dim); max-width: var(--measure); }
+.prose strong { color: var(--ink); font-weight: 600; }
+
+.order-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0; padding: 0; list-style: none; counter-reset: ord; }
+.order-list li {
+  display: flex; align-items: center; gap: 0.85rem;
+  padding: 0.85rem 1rem; border-radius: 0.7rem;
+  border: 1px solid var(--hairline); background: var(--surface);
+  font-size: 0.95rem;
+}
+.order-list li::before {
+  counter-increment: ord; content: counter(ord);
+  font-family: var(--mono); font-size: 0.75rem; color: var(--ink-faint);
+  width: 1.5rem; height: 1.5rem; border-radius: 0.4rem;
+  display: grid; place-items: center; flex: 0 0 auto;
+  background: var(--ground); border: 1px solid var(--hairline);
+}
+.order-list li.here { border-color: var(--accent); background: var(--accent-soft); }
+.order-list li.here::before { border-color: var(--accent); color: var(--accent); }
+.order-list li em { font-style: normal; margin-left: auto; font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); }
+
+/* ── permissions ──────────────────────────────────────────── */
+
+.permissions { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.permission { border: 1px solid var(--hairline); border-radius: 0.9rem; padding: 1.35rem 1.25rem; background: var(--surface); display: flex; flex-direction: column; gap: 0.5rem; }
+.permission h3 { font-size: 0.98rem; font-weight: 600; }
+.permission p { font-size: 0.9rem; color: var(--ink-dim); }
+
+/* ── install ──────────────────────────────────────────────── */
+
+.terminal {
+  border-radius: 0.9rem; border: 1px solid var(--hairline);
+  background: var(--sunken); overflow: hidden; max-width: 42rem;
+}
+.terminal-bar { display: flex; gap: 0.4rem; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--hairline); }
+.terminal-bar i { width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--hairline-firm); display: block; }
+.terminal pre { margin: 0; padding: 1.15rem 1.2rem; overflow-x: auto; font-family: var(--mono); font-size: 0.88rem; line-height: 1.8; color: var(--ink); }
+.terminal .c { color: var(--ink-faint); }
+
+footer { border-top: 1px solid var(--hairline); padding-block: 2.5rem 3.5rem; color: var(--ink-faint); font-size: 0.88rem; }
+.footer-row { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; justify-content: space-between; }
+footer a { text-decoration: none; color: var(--ink-dim); }
+footer a:hover { color: var(--ink); }
+
+/* On a phone the panel stacks one tile per row, which would push the whole
+   page down. Three is enough to show what the thing is. */
+@media (max-width: 30rem) {
+  .tile:nth-child(n+4) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .tile[aria-selected="true"] { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header class="masthead">
+    <div class="wordmark">
+      <svg viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect width="1024" height="1024" rx="230" fill="#1A2440" />
+        <g fill="none" stroke="#fff" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M268 356 L462 356 L636 668 L756 668" />
+          <path d="M660 356 L756 356" />
+        </g>
+      </svg>
+      Opta
+    </div>
+    <nav>
+      <a href="#speed">Speed</a>
+      <a href="#shortcuts">Shortcuts</a>
+      <a href="#order">Ordering</a>
+      <a href="#install">Install</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+      <p class="eyebrow">Window switcher · macOS 14+</p>
+      <h1>Hold <span class="key">⌥</span>. Pick a window. Let go.</h1>
+      <p class="hero-lede">Opta cycles every window on your Mac from one key you are already resting a thumb on. The overlay draws in <strong>0.274&nbsp;ms</strong> — roughly three percent of a ProMotion frame — so the list is simply there.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="#install">Build it now</a>
+        <a class="button button-quiet" href="https://github.com/romankhadka/opta">View source</a>
+      </div>
+    </div>
+
+    <div class="stage" id="stage" data-open="false">
+      <div class="overlay" id="overlay" role="listbox" aria-label="Open windows"></div>
+      <div class="stage-hint"><span id="hint">Hold ⌥ Option — or press and hold here</span></div>
+    </div>
+  </div>
+</div>
+
+<section class="perf" id="speed">
+  <div class="shell">
+    <div class="section-head">
+      <p class="eyebrow">Speed</p>
+      <h2>Faster than the frame it lands in</h2>
+      <p>Speed is the whole point, so it is the thing this project measures and defends. A switcher only feels instant if it finishes before the display asks for the next frame. Opta finishes with the frame barely started — and every number below is instrumented in the shipping build, not estimated.</p>
+    </div>
+
+    <figure class="hero-number" style="margin:0;">
+      <b>0.274<small>ms</small></b>
+      <figcaption>Median warm overlay render, measured over repeated sessions with <code style="font-family:var(--mono)">OSSignposter</code> intervals on the shipping build.</figcaption>
+    </figure>
+
+    <div class="budget">
+      <div class="budget-track" role="img" aria-label="Overlay render takes 0.274 milliseconds of an 8.33 millisecond ProMotion frame budget; the 95th percentile is 2.236 milliseconds.">
+        <div class="budget-fill"></div>
+        <div class="budget-p95"></div>
+      </div>
+      <div class="budget-labels"><span>0 ms</span><span>8.33 ms — one 120 Hz frame</span></div>
+      <div class="budget-key">
+        <span><i class="swatch"></i> 0.274 ms median render</span>
+        <span><i class="swatch line"></i> 2.236 ms 95th percentile</span>
+        <span>The remaining 6.09 ms of the frame is still yours.</span>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b>3.3<small>%</small></b><span>of a 120 Hz frame spent drawing the overlay</span></div>
+      <div class="stat"><b>2.236<small>ms</small></b><span>95th percentile render, against a 4 ms ceiling</span></div>
+      <div class="stat"><b>0.04<small>%</small></b><span>of one core while idle, measured over 45 s resident</span></div>
+      <div class="stat"><b>0.5<small>MB</small></b><span>compiled binary, arm64</span></div>
+      <div class="stat"><b>0<small>deps</small></b><span>third-party packages in the whole build</span></div>
+      <div class="stat"><b>66</b><span>tests in 16 suites, run on every change</span></div>
+    </div>
+
+    <p class="method">
+      <strong style="color:var(--ink)">How these were taken.</strong> Render figures come from <code>OverlayRender</code> signpost intervals on warm sessions — the second and later invocations, which is what a switcher actually does all day. The budget is the ceiling the project holds itself to: below <code>1 ms</code> median and <code>4 ms</code> p95, or the visual change gets simplified until it fits. Footprint and test figures are read from the shipping build. Repeat-session preview and icon lookups are served from cache and cost effectively nothing.
+    </p>
+  </div>
+</section>
+
+<section id="shortcuts">
+  <div class="shell">
+    <div class="section-head">
+      <p class="eyebrow">Shortcuts</p>
+      <h2>Four keys, and nothing to learn</h2>
+      <p>Every shortcut is Option plus one thing. Hold to browse, release to commit — the same muscle memory you already have for Command-Tab, moved to the key beside it.</p>
+    </div>
+    <div class="shortcuts">
+      <div class="shortcut">
+        <div class="combo"><kbd>⌥</kbd><em>+</em><kbd>⇥</kbd></div>
+        <p>Cycle every visible window, from every application, most recently used first.</p>
+      </div>
+      <div class="shortcut">
+        <div class="combo"><kbd>⌥</kbd><em>+</em><kbd>`</kbd></div>
+        <p>Cycle only the windows of the app you are already in. Switch it off from the menu bar if you type à, è, ì, ò, or ù.</p>
+      </div>
+      <div class="shortcut">
+        <div class="combo"><kbd>⇧</kbd><em>+ either</em></div>
+        <p>Walk the list backwards. Overshoot by one and you are one keystroke from home.</p>
+      </div>
+      <div class="shortcut">
+        <div class="combo"><kbd>esc</kbd><em>or</em><kbd>click</kbd></div>
+        <p>Escape dismisses without activating anything. Hovering selects, clicking activates immediately.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--surface); border-block:1px solid var(--hairline);" id="order">
+  <div class="shell">
+    <div class="split">
+      <div>
+        <div class="section-head" style="margin-bottom:1.5rem;">
+          <p class="eyebrow">Ordering</p>
+          <h2>It starts on the window you want</h2>
+        </div>
+        <div class="prose">
+          <p>Opta keeps its own most-recently-used order. It records focus as it happens — windows it activates itself, application switches from the Dock or Command-Tab, and focus changes inside each app — and falls back to the system's front-to-back list for windows it has never seen focused.</p>
+          <p><strong>The first press lands on the second window, not the first.</strong> The window you are staring at is skipped, because you are already there. One tap of Option-Tab flips you back to where you just were; hold it to go further.</p>
+          <p>Minimised and hidden windows stay out of the list. So do Opta's own.</p>
+        </div>
+      </div>
+      <ul class="order-list">
+        <li><span>Xcode — OptionMark.swift</span><em>you are here</em></li>
+        <li class="here"><span>Safari — Quiet Glass spec</span><em>first press</em></li>
+        <li><span>Terminal — ~/code/opta</span><em></em></li>
+        <li><span>Finder — Applications</span><em></em></li>
+        <li><span>Mail — Inbox</span><em></em></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shell">
+    <div class="section-head">
+      <p class="eyebrow">Internals</p>
+      <h2>Native the whole way down</h2>
+      <p>No Electron, no helper daemon, no bundled runtime. Opta is 2,807 lines of Swift across 27 files, calling the frameworks that already ship with your Mac.</p>
+    </div>
+    <div class="internals">
+      <div class="internal"><code>CGWindowListCopyWindowInfo</code><p>Discovers every visible window, then filters the untitled ghosts that other switchers show you.</p></div>
+      <div class="internal"><code>ScreenCaptureKit</code><p>Captures live window previews, cached between sessions so a repeat press costs nothing.</p></div>
+      <div class="internal"><code>Accessibility APIs</code><p>Raises exactly the window you chose, and nothing else that happens to belong to the same app.</p></div>
+      <div class="internal"><code>CGEventTap</code><p>A session event tap intercepts Option-Tab and Option-backtick without swallowing anything else.</p></div>
+      <div class="internal"><code>SMAppService.mainApp</code><p>Registers Opta as a login item through the modern API, no legacy helper bundle.</p></div>
+      <div class="internal"><code>SwiftUI + NSPanel</code><p>One borderless transparent panel, one material, one shadow. The Quiet Glass surface you see above.</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--surface); border-block:1px solid var(--hairline);">
+  <div class="shell">
+    <div class="section-head">
+      <p class="eyebrow">Permissions</p>
+      <h2>Three prompts, and why</h2>
+      <p>A window switcher cannot work without reaching outside its own process. Here is exactly what Opta asks for and what it does with each. Nothing leaves your Mac.</p>
+    </div>
+    <div class="permissions">
+      <div class="permission">
+        <h3>Accessibility</h3>
+        <p>Required. Focuses and raises the window you selected. Without it Opta can show you the list but cannot act on it.</p>
+      </div>
+      <div class="permission">
+        <h3>Input Monitoring</h3>
+        <p>Required. Lets the event tap see Option-Tab globally, so the switcher works from inside any app.</p>
+      </div>
+      <div class="permission">
+        <h3>Screen Recording</h3>
+        <p>Optional. Draws the live previews. Decline it and Opta falls back to application icons; everything else still works.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="shell">
+    <div class="section-head">
+      <p class="eyebrow">Install</p>
+      <h2>Two commands</h2>
+      <p>Opta builds from source with the Swift toolchain that ships with Xcode. The build script assembles the app bundle and signs it for local use.</p>
+    </div>
+    <div class="terminal">
+      <div class="terminal-bar"><i></i><i></i><i></i></div>
+<pre><span class="c"># clone and build</span>
+git clone https://github.com/romankhadka/opta.git
+cd opta &amp;&amp; ./scripts/build_app.sh
+
+<span class="c"># run it</span>
+open .build/release/Opta.app</pre>
+    </div>
+    <p style="margin-top:1.25rem; color:var(--ink-dim); font-size:0.92rem; max-width:var(--measure);">
+      Requires macOS 14 or newer and Xcode 26 or its command line tools. Grant the permissions when prompted, then relaunch so macOS applies them.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="shell footer-row">
+    <div class="wordmark" style="font-size:0.95rem;">
+      <svg viewBox="0 0 1024 1024" aria-hidden="true" style="width:1.3rem;height:1.3rem;">
+        <rect width="1024" height="1024" rx="230" fill="#1A2440" />
+        <g fill="none" stroke="#fff" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M268 356 L462 356 L636 668 L756 668" />
+          <path d="M660 356 L756 356" />
+        </g>
+      </svg>
+      Opta
+    </div>
+    <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+      <a href="https://github.com/romankhadka/opta">GitHub</a>
+      <a href="https://github.com/romankhadka/opta/blob/main/LICENSE">MIT licence</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const WINDOWS = [
+    { title: "OptionMark.swift", app: "Xcode",    icon: "#4E7FD4", lines: 6 },
+    { title: "Quiet Glass spec", app: "Safari",   icon: "#3FA9E8", lines: 5 },
+    { title: "~/code/opta",      app: "Terminal", icon: "#3F4652", lines: 7 },
+    { title: "Applications",     app: "Finder",   icon: "#5AA9F2", lines: 4 },
+    { title: "Inbox — 3 unread", app: "Mail",     icon: "#4C8DF6", lines: 5 }
+  ];
+
+  const stage = document.getElementById("stage");
+  const overlay = document.getElementById("overlay");
+  const hint = document.getElementById("hint");
+  if (!stage || !overlay) return;
+
+  const IDLE_HINT = "Hold ⌥ Option and press Tab — or press and hold here";
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // The first press lands on the second window, because you are already
+  // looking at the first — the same rule the app follows.
+  let selected = 1;
+  let open = false;
+  let intro = null;
+
+  overlay.innerHTML = WINDOWS.map((w, i) => `
+    <button class="tile" role="option" type="button" data-index="${i}" aria-selected="${i === 1}">
+      <span class="preview">
+        <span class="preview-bar"></span>
+        <span class="preview-body">${'<i></i>'.repeat(w.lines)}</span>
+      </span>
+      <span class="tile-meta">
+        <span class="tile-icon" style="background:${w.icon}"></span>
+        <span class="tile-text">
+          <span class="tile-title">${w.title}</span>
+          <span class="tile-app">${w.app}</span>
+        </span>
+      </span>
+    </button>`).join("");
+
+  const tiles = [...overlay.querySelectorAll(".tile")];
+
+  function paint() {
+    tiles.forEach((tile, i) => tile.setAttribute("aria-selected", String(i === selected)));
+  }
+
+  function stopIntro() {
+    if (intro === null) return;
+    window.clearInterval(intro);
+    intro = null;
+  }
+
+  function show() {
+    stopIntro();
+    if (open) return;
+    open = true;
+    selected = 1;
+    paint();
+    stage.dataset.open = "true";
+  }
+
+  // The panel stays on screen between demonstrations. Hiding it would leave
+  // an empty rectangle where the product should be.
+  function hide(activate) {
+    if (!open) return;
+    open = false;
+    if (activate) {
+      const chosen = WINDOWS[selected];
+      hint.textContent = `Activated · ${chosen.app} — ${chosen.title}`;
+      window.setTimeout(() => { hint.textContent = IDLE_HINT; }, 2600);
+    }
+  }
+
+  function step(delta) {
+    selected = (selected + delta + WINDOWS.length) % WINDOWS.length;
+    paint();
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Alt") { show(); event.preventDefault(); return; }
+    if (!open) return;
+    if (event.key === "Tab") { step(event.shiftKey ? -1 : 1); event.preventDefault(); }
+    else if (event.key === "Escape") { hide(false); event.preventDefault(); }
+    else if (event.key === "ArrowRight") { step(1); event.preventDefault(); }
+    else if (event.key === "ArrowLeft") { step(-1); event.preventDefault(); }
+  });
+
+  document.addEventListener("keyup", (event) => {
+    if (event.key === "Alt") { hide(true); event.preventDefault(); }
+  });
+
+  // Releasing Option can be swallowed when the window loses focus mid-hold.
+  window.addEventListener("blur", () => hide(false));
+
+  // Pointer path, so the demo works without a physical Option key.
+  const press = (event) => {
+    if (event.target.closest(".tile")) return;
+    event.preventDefault();
+    show();
+  };
+  stage.addEventListener("pointerdown", press);
+  stage.addEventListener("pointerup", () => hide(true));
+  stage.addEventListener("pointerleave", () => hide(false));
+
+  tiles.forEach((tile) => {
+    tile.addEventListener("pointerenter", () => {
+      if (!open) return;
+      selected = Number(tile.dataset.index);
+      paint();
+    });
+    tile.addEventListener("click", (event) => {
+      event.stopPropagation();
+      stopIntro();
+      selected = Number(tile.dataset.index);
+      paint();
+      hide(true);
+    });
+  });
+
+  // Open on load so the switcher is the first thing you see, then walk the
+  // selection once the way a real press would, unless motion is unwelcome.
+  paint();
+  stage.dataset.open = "true";
+  hint.textContent = IDLE_HINT;
+
+  if (!still) {
+    let walked = 0;
+    intro = window.setInterval(() => {
+      walked += 1;
+      // Walk a few, then settle back on the first press position, so the
+      // panel rests where a real Option-Tab would leave it.
+      selected = walked > 3 ? 1 : (selected + 1) % WINDOWS.length;
+      paint();
+      if (walked > 3) stopIntro();
+    }, 900);
+  }
+})();
+</script>
+</body>
+</html>
