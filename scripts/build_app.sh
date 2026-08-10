@@ -100,11 +100,19 @@ OPENSSL
     "$SIGNING_KEYCHAIN" >/dev/null
 }
 
-create_signing_identity
-SIGNING_IDENTITY="$(signing_identity)"
-if [ -z "$SIGNING_IDENTITY" ]; then
-  printf '%s\n' "Could not create or find $SIGNING_COMMON_NAME" >&2
-  exit 1
+# A release is signed with a Developer ID so that Gatekeeper and notarisation
+# have something to trust. Everything else keeps the self-signed local identity,
+# which never leaves this machine.
+if [ -n "${OPTA_SIGNING_IDENTITY:-}" ]; then
+  SIGNING_IDENTITY="$OPTA_SIGNING_IDENTITY"
+  SIGNING_KEYCHAIN="${OPTA_SIGNING_KEYCHAIN:-$SIGNING_KEYCHAIN}"
+else
+  create_signing_identity
+  SIGNING_IDENTITY="$(signing_identity)"
+  if [ -z "$SIGNING_IDENTITY" ]; then
+    printf '%s\n' "Could not create or find $SIGNING_COMMON_NAME" >&2
+    exit 1
+  fi
 fi
 
 swift build -c release
@@ -220,11 +228,25 @@ PLIST
 # CFBundleIconName and CFBundleIconFile cannot drift from the document's name.
 /usr/libexec/PlistBuddy -c "Merge $ICON_WORK_DIR/icon.plist" "$CONTENTS_DIR/Info.plist" >/dev/null
 
-codesign \
-  --force \
-  --deep \
-  --keychain "$SIGNING_KEYCHAIN" \
-  --sign "$SIGNING_IDENTITY" \
-  "$APP_DIR" >/dev/null
+# A tagged release stamps its own version. A local build keeps the development
+# one. Both happen before signing, because editing the bundle after codesign
+# invalidates the signature.
+if [ -n "${OPTA_VERSION:-}" ]; then
+  /usr/libexec/PlistBuddy \
+    -c "Set :CFBundleShortVersionString $OPTA_VERSION" \
+    "$CONTENTS_DIR/Info.plist" >/dev/null
+  /usr/libexec/PlistBuddy \
+    -c "Set :CFBundleVersion ${OPTA_BUILD:-$OPTA_VERSION}" \
+    "$CONTENTS_DIR/Info.plist" >/dev/null
+fi
+
+CODESIGN_FLAGS=(--force --deep --keychain "$SIGNING_KEYCHAIN" --sign "$SIGNING_IDENTITY")
+if [ -n "${OPTA_SIGNING_IDENTITY:-}" ]; then
+  # Notarisation rejects a bundle that lacks the hardened runtime or a secure
+  # timestamp, so a distribution identity gets both.
+  CODESIGN_FLAGS+=(--options runtime --timestamp)
+fi
+
+codesign "${CODESIGN_FLAGS[@]}" "$APP_DIR" >/dev/null
 
 printf '%s\n' "$APP_DIR"

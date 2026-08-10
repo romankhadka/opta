@@ -1,0 +1,202 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, without the leading v (e.g. 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    env:
+      # Secrets cannot be read directly inside an `if`, so their presence is
+      # lifted into plain strings here and the steps branch on those.
+      HAS_SIGNING_CERT: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
+      HAS_NOTARY_CREDENTIALS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' }}
+      SIGNING_KEYCHAIN: ${{ github.workspace }}/.build/release-signing.keychain-db
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve the version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "Refusing to build '$version': expected a semantic version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building Opta $version"
+
+      - name: Show toolchain
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      - name: Test
+        run: swift test
+
+      - name: Import the Developer ID certificate
+        if: env.HAS_SIGNING_CERT == 'true'
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain_password="$(uuidgen)"
+          mkdir -p "$(dirname "$SIGNING_KEYCHAIN")"
+
+          security create-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$SIGNING_KEYCHAIN"
+          security unlock-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN"
+          # The existing keychains have to stay in the search list, and they
+          # arrive as separate words on purpose.
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$SIGNING_KEYCHAIN" \
+            $(security list-keychains -d user | tr -d '"')
+
+          certificate="$RUNNER_TEMP/certificate.p12"
+          printf '%s' "$CERTIFICATE_P12" | base64 --decode > "$certificate"
+          security import "$certificate" \
+            -k "$SIGNING_KEYCHAIN" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          rm -f "$certificate"
+
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$SIGNING_KEYCHAIN" >/dev/null
+
+          identity="$(security find-identity -v -p codesigning "$SIGNING_KEYCHAIN" \
+            | grep 'Developer ID Application' | head -n 1 | awk '{print $2}')"
+          if [ -z "$identity" ]; then
+            echo "No Developer ID Application identity in the imported certificate" >&2
+            exit 1
+          fi
+          echo "OPTA_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "OPTA_SIGNING_KEYCHAIN=$SIGNING_KEYCHAIN" >> "$GITHUB_ENV"
+          echo "Signing with Developer ID $identity"
+
+      - name: Store notary credentials
+        if: env.HAS_SIGNING_CERT == 'true' && env.HAS_NOTARY_CREDENTIALS == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool store-credentials opta-notary \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --keychain "$SIGNING_KEYCHAIN"
+          echo "OPTA_NOTARY_PROFILE=opta-notary" >> "$GITHUB_ENV"
+
+      - name: Package
+        env:
+          OPTA_VERSION: ${{ steps.version.outputs.version }}
+          OPTA_BUILD: ${{ github.run_number }}
+        run: ./scripts/package_release.sh
+
+      - name: Write the release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          trust="$(cat .build/dist/TRUST)"
+          checksum="$(awk '{print $1}' .build/dist/SHA256SUMS.txt)"
+          notes="$RUNNER_TEMP/notes.md"
+
+          {
+            echo "## Install"
+            echo
+            echo "1. Download \`Opta-$VERSION.zip\` below and unzip it."
+            echo "2. Move **Opta.app** to your Applications folder."
+            echo "3. Launch it. Opta lives in the menu bar and has no Dock icon."
+            echo
+            echo "Opta then asks for Accessibility and Input Monitoring, which it needs to"
+            echo "see the Option key and raise the window you pick, and optionally Screen"
+            echo "Recording for live previews. Relaunch after granting them."
+            echo
+          } > "$notes"
+
+          if [ "$trust" = "notarised" ]; then
+            {
+              echo "This build is signed with a Developer ID and notarised by Apple, so it"
+              echo "opens with a double click."
+              echo
+            } >> "$notes"
+          else
+            {
+              echo "> [!IMPORTANT]"
+              echo "> This build is **not notarised by Apple**, so macOS quarantines it on"
+              echo "> download and will say it cannot be verified. To run it anyway:"
+              echo ">"
+              echo "> \`\`\`bash"
+              echo "> xattr -dr com.apple.quarantine /Applications/Opta.app"
+              echo "> \`\`\`"
+              echo ">"
+              echo "> Because the signing identity is not stable across releases, macOS also"
+              echo "> treats each update as a new app: you will need to grant Accessibility"
+              echo "> and Input Monitoring again after upgrading. Building from source with"
+              echo "> \`./scripts/build_app.sh\` avoids both problems."
+              echo
+            } >> "$notes"
+          fi
+
+          {
+            echo "**Requires macOS 14 or newer.**"
+            echo
+            echo "\`\`\`"
+            echo "SHA-256  $checksum"
+            echo "\`\`\`"
+          } >> "$notes"
+
+          echo "path=$notes" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          if ! git rev-parse "$tag" >/dev/null 2>&1; then
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" \
+              ".build/dist/Opta-$VERSION.zip" \
+              .build/dist/SHA256SUMS.txt --clobber
+          else
+            gh release create "$tag" \
+              ".build/dist/Opta-$VERSION.zip" \
+              .build/dist/SHA256SUMS.txt \
+              --title "Opta $VERSION" \
+              --notes-file "${{ steps.notes.outputs.path }}"
+          fi
+
+      - name: Remove the signing keychain
+        if: always() && env.HAS_SIGNING_CERT == 'true'
+        run: security delete-keychain "$SIGNING_KEYCHAIN" || true

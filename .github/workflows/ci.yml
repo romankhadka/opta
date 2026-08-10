@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Opta's icon is an Icon Composer document, which only Xcode 26's actool and
+    # ictool can read, so the image choice is load-bearing rather than cosmetic.
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          swift --version
+
+      - name: Test
+        run: swift test
+
+      - name: Build the app bundle
+        run: ./scripts/build_app.sh
+
+      - name: Check the icon renders in every appearance
+        run: ./scripts/preview_icon.sh

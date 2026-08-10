@@ -1,9 +1,15 @@
-# Opta
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/opta-icon-dark.png">
+    <img src="docs/assets/opta-icon.png" alt="The Opta icon: the Option key glyph on a blue steel field" width="128" height="128">
+  </picture>
+</p>
 
-Landing page: `docs/index.html`, ready to serve from GitHub Pages with the
-Pages source set to the `docs` folder on `main`. It carries an interactive
-switcher demo built from the shipped Quiet Glass tokens, so the panel on the
-page is the panel in the app.
+<h1 align="center">Opta</h1>
+
+<p align="center">Hold Option. Pick a window. Let go.</p>
+
+---
 
 Opta is a native macOS window switcher for people who want Option-based cycling:
 
@@ -17,6 +23,15 @@ Opta is a native macOS window switcher for people who want Option-based cycling:
 - Use the menu bar item to toggle current-application cycling or Launch at Login.
 
 The switcher shows live window previews when Screen Recording permission is available, then falls back to the application icon. Each tile includes the window title, application name, and app icon.
+
+## Download
+
+Grab the latest build from [Releases](https://github.com/romankhadka/opta/releases),
+unzip it, and move `Opta.app` to your Applications folder. Each release note says
+whether that build is notarised by Apple; an unnotarised one needs its quarantine
+flag cleared before macOS will open it, and the release note gives the command.
+
+Building from source avoids that entirely.
 
 ## Requirements
 
@@ -34,7 +49,33 @@ swift test
 open .build/release/Opta.app
 ```
 
-The build script creates `.build/release/Opta.app` and ad-hoc signs it for local use.
+The build script creates `.build/release/Opta.app` and signs it with a self-signed
+certificate it keeps in its own keychain, so the bundle has a stable identity and
+macOS does not drop its permissions between builds. That certificate never leaves
+the machine, which is why a build made this way cannot be handed to anyone else.
+
+## Landing page
+
+`docs/index.html`, ready to serve from GitHub Pages with the Pages source set to
+the `docs` folder on `main`. It carries an interactive switcher demo built from
+the shipped Quiet Glass tokens, so the panel on the page is the panel in the app.
+
+## Releases
+
+Tagging a commit `vX.Y.Z` and pushing the tag runs `.github/workflows/release.yml`,
+which tests, builds, packages, and publishes the zip to a GitHub release.
+
+To make those downloads open without a Gatekeeper warning, add these repository
+secrets; the workflow signs and notarises only when they are all present, and
+falls back to an unnotarised build otherwise.
+
+| Secret | What it holds |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12` | base64 of a Developer ID Application `.p12` |
+| `MACOS_CERTIFICATE_PASSWORD` | the password for that `.p12` |
+| `APPLE_ID` | the Apple ID that owns the developer account |
+| `APPLE_TEAM_ID` | the ten-character team identifier |
+| `APPLE_APP_PASSWORD` | an app-specific password for notarisation |
 
 ## Icon
 
