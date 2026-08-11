@@ -6,6 +6,9 @@ final class KeyboardEventTap: @unchecked Sendable {
     private static let graveKeyCode: Int64 = 50
     private static let escapeKeyCode: Int64 = 53
 
+    // Read on the event-tap callback, written by the status menu; both run on
+    // the main run loop, so reading the preference here needs no mirror.
+    private let currentApplicationShortcut: CurrentApplicationShortcutController
     private let onCycleAllApplications: @MainActor @Sendable (WindowCycleDirection) -> Void
     private let onCycleCurrentApplication: @MainActor @Sendable (WindowCycleDirection) -> Void
     private let onCycleActiveSession: @MainActor @Sendable (WindowCycleDirection) -> Void
@@ -18,15 +21,16 @@ final class KeyboardEventTap: @unchecked Sendable {
     // Written from the main actor, read on the event-tap callback; both run on
     // the main run loop, so the @unchecked Sendable access is single-threaded.
     private var sessionIsActive = false
-    private var currentApplicationShortcutEnabled = true
 
     init(
+        currentApplicationShortcut: CurrentApplicationShortcutController,
         onCycleAllApplications: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onCycleCurrentApplication: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onCycleActiveSession: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onModifierRelease: @escaping @MainActor @Sendable () -> Void,
         onCancel: @escaping @MainActor @Sendable () -> Void
     ) {
+        self.currentApplicationShortcut = currentApplicationShortcut
         self.onCycleAllApplications = onCycleAllApplications
         self.onCycleCurrentApplication = onCycleCurrentApplication
         self.onCycleActiveSession = onCycleActiveSession
@@ -36,10 +40,6 @@ final class KeyboardEventTap: @unchecked Sendable {
 
     func setSessionActive(_ active: Bool) {
         sessionIsActive = active
-    }
-
-    func setCurrentApplicationShortcutEnabled(_ enabled: Bool) {
-        currentApplicationShortcutEnabled = enabled
     }
 
     deinit {
@@ -175,7 +175,7 @@ final class KeyboardEventTap: @unchecked Sendable {
         case Self.graveKeyCode:
             // When disabled, let ⌥` through so the grave-accent dead key keeps
             // working for typing à/è/ì/ò/ù.
-            guard currentApplicationShortcutEnabled else {
+            guard currentApplicationShortcut.isEnabled else {
                 return Unmanaged.passUnretained(event)
             }
 

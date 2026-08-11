@@ -228,14 +228,13 @@ public final class SwitcherCoordinator {
     }
 
     public func release() -> WindowSnapshot? {
-        defer {
-            activeScope = nil
-            activeSession = nil
-        }
+        defer { cancel() }
 
         return activeSession?.selectedWindow
     }
 
+    /// Ends the session without selecting a window. `release` uses it too, so
+    /// session state is torn down in exactly one place.
     public func cancel() {
         activeScope = nil
         activeSession = nil

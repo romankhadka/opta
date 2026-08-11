@@ -22,10 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusMenuController = StatusMenuController(
-            currentApplicationShortcutController: currentApplicationShortcut,
-            onCurrentApplicationShortcutChanged: { [weak self] isEnabled in
-                self?.keyboardEventTap?.setCurrentApplicationShortcutEnabled(isEnabled)
-            }
+            currentApplicationShortcutController: currentApplicationShortcut
         )
         let keyboardPermissionState = PermissionManager.requestKeyboardCapturePermissions()
         PermissionManager.requestScreenRecordingPermissionIfNeeded()
@@ -38,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusTracker.start()
 
         let eventTap = KeyboardEventTap(
+            currentApplicationShortcut: currentApplicationShortcut,
             onCycleAllApplications: { [weak self] direction in
                 self?.cycleAllApplications(direction: direction)
             },
@@ -54,7 +52,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.cancelSelection()
             }
         )
-        eventTap.setCurrentApplicationShortcutEnabled(currentApplicationShortcut.isEnabled)
 
         keyboardEventTap = eventTap
         if !eventTap.start() {
@@ -80,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         defer { PerformanceMetrics.end(measurement) }
 
         guard let frontmostProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
-            overlayController.hide()
+            hideOverlay()
             return
         }
 
@@ -110,8 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func show(session: WindowCycleSession) {
         guard !session.windows.isEmpty else {
-            overlayController.hide()
-            keyboardEventTap?.setSessionActive(false)
+            hideOverlay()
             return
         }
 
@@ -137,9 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func commitSelection() {
-        keyboardEventTap?.setSessionActive(false)
         let selectedWindow = coordinator.release()
-        overlayController.hide()
+        hideOverlay()
 
         guard let selectedWindow else {
             return
@@ -154,8 +149,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func cancelSelection() {
-        keyboardEventTap?.setSessionActive(false)
         coordinator.cancel()
+        hideOverlay()
+    }
+
+    /// The event tap only intercepts Escape and repeated Shift while a session
+    /// is on screen, so every path that hides the overlay has to clear the
+    /// flag with it.
+    private func hideOverlay() {
+        keyboardEventTap?.setSessionActive(false)
         overlayController.hide()
     }
 }

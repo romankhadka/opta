@@ -8,23 +8,18 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let launchAtLoginController: LaunchAtLoginController
     private let currentApplicationShortcutController: CurrentApplicationShortcutController
-    private let onCurrentApplicationShortcutChanged: (Bool) -> Void
     private var launchAtLoginItem: NSMenuItem?
     private var currentApplicationShortcutItem: NSMenuItem?
 
     init(
+        currentApplicationShortcutController: CurrentApplicationShortcutController,
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController(
             manager: ServiceManagementLaunchAtLoginManager()
-        ),
-        currentApplicationShortcutController: CurrentApplicationShortcutController = CurrentApplicationShortcutController(
-            store: UserDefaultsCurrentApplicationShortcutStore()
-        ),
-        onCurrentApplicationShortcutChanged: @escaping (Bool) -> Void = { _ in }
+        )
     ) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.launchAtLoginController = launchAtLoginController
         self.currentApplicationShortcutController = currentApplicationShortcutController
-        self.onCurrentApplicationShortcutChanged = onCurrentApplicationShortcutChanged
         super.init()
 
         statusItem.button?.image = OptionMarkImage.menuBar()
@@ -132,7 +127,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private func toggleCurrentApplicationShortcut() {
         currentApplicationShortcutController.toggle()
         refreshCurrentApplicationShortcutMenuItem()
-        onCurrentApplicationShortcutChanged(currentApplicationShortcutController.isEnabled)
     }
 
     @objc

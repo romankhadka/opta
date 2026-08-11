@@ -23,21 +23,12 @@ struct CurrentApplicationShortcutControllerTests {
         let store = StubShortcutStore(isEnabled: true)
         let controller = CurrentApplicationShortcutController(store: store)
 
+        #expect(controller.isEnabled)
+
         controller.setEnabled(false)
 
         #expect(!controller.isEnabled)
         #expect(!store.isEnabled)
-    }
-
-    @Test("isEnabled reflects the stored preference")
-    func isEnabledReflectsStoredPreference() {
-        let store = StubShortcutStore(isEnabled: true)
-        let controller = CurrentApplicationShortcutController(store: store)
-
-        #expect(controller.isEnabled)
-
-        controller.setEnabled(false)
-        #expect(!controller.isEnabled)
     }
 }
 
