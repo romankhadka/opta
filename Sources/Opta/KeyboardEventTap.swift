@@ -34,6 +34,12 @@ final class KeyboardEventTap: @unchecked Sendable {
         self.onCancel = onCancel
     }
 
+    /// Whether a tap is installed right now. `stop()` clears the port, so this
+    /// also reports false after a teardown.
+    var isRunning: Bool {
+        eventTap != nil
+    }
+
     func setSessionActive(_ active: Bool) {
         sessionIsActive = active
     }
