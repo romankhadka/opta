@@ -4,9 +4,27 @@ import Testing
 
 @Suite("Window activation plan")
 struct WindowActivationPlanTests {
+    @Test("fronts the selected window through the window server before raising it")
+    func frontsThroughWindowServer() {
+        let performer = RecordingWindowActivationPerformer(windowServerIsAvailable: true)
+
+        WindowActivationPlan.activate(using: performer)
+
+        #expect(performer.steps == [.bringWindowToFront, .raiseWindow])
+    }
+
+    @Test("does not activate the application when the window server fronted the window")
+    func skipsApplicationActivationAfterWindowServer() {
+        let performer = RecordingWindowActivationPerformer(windowServerIsAvailable: true)
+
+        WindowActivationPlan.activate(using: performer)
+
+        #expect(!performer.steps.contains(.activateApplication))
+    }
+
     @Test("raises the selected window before the application is activated")
     func raisesBeforeActivating() throws {
-        let performer = RecordingWindowActivationPerformer()
+        let performer = RecordingWindowActivationPerformer(windowServerIsAvailable: false)
 
         WindowActivationPlan.activate(using: performer)
 
@@ -16,9 +34,9 @@ struct WindowActivationPlanTests {
         #expect(raiseIndex < activateIndex)
     }
 
-    @Test("activates the application exactly once")
+    @Test("activates the application exactly once without the window server")
     func activatesOnce() {
-        let performer = RecordingWindowActivationPerformer()
+        let performer = RecordingWindowActivationPerformer(windowServerIsAvailable: false)
 
         WindowActivationPlan.activate(using: performer)
 
@@ -27,7 +45,7 @@ struct WindowActivationPlanTests {
 
     @Test("focuses the selected window after the application is activated")
     func focusesAfterActivating() throws {
-        let performer = RecordingWindowActivationPerformer()
+        let performer = RecordingWindowActivationPerformer(windowServerIsAvailable: false)
 
         WindowActivationPlan.activate(using: performer)
 
@@ -39,12 +57,23 @@ struct WindowActivationPlanTests {
 
 private final class RecordingWindowActivationPerformer: WindowActivationPerforming {
     enum Step {
+        case bringWindowToFront
         case raiseWindow
         case focusWindow
         case activateApplication
     }
 
+    private let windowServerIsAvailable: Bool
     private(set) var steps: [Step] = []
+
+    init(windowServerIsAvailable: Bool) {
+        self.windowServerIsAvailable = windowServerIsAvailable
+    }
+
+    func bringWindowToFront() -> Bool {
+        steps.append(.bringWindowToFront)
+        return windowServerIsAvailable
+    }
 
     func raiseWindow() {
         steps.append(.raiseWindow)

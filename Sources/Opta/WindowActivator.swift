@@ -45,6 +45,7 @@ struct WindowActivator {
 
         WindowActivationPlan.activate(
             using: AccessibilityWindowActivationPerformer(
+                windowID: window.id,
                 window: accessibilityWindow,
                 accessibilityApplication: accessibilityApplication,
                 application: application
@@ -239,9 +240,17 @@ private struct AccessibilityWindowCandidate {
 }
 
 private struct AccessibilityWindowActivationPerformer: WindowActivationPerforming {
+    let windowID: UInt32
     let window: AXUIElement
     let accessibilityApplication: AXUIElement
     let application: NSRunningApplication
+
+    func bringWindowToFront() -> Bool {
+        WindowServerFocus.bringToFront(
+            windowID: windowID,
+            processIdentifier: application.processIdentifier
+        )
+    }
 
     func raiseWindow() {
         AXUIElementPerformAction(window, kAXRaiseAction as CFString)
