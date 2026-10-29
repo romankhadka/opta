@@ -197,6 +197,68 @@ struct WindowCyclerTests {
         #expect(session.windows.map(\.id) == [2, 1])
     }
 
+    @Test("the most recent window skips the closing application and follows the recency log")
+    func mostRecentWindowSkipsClosingApplication() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Closing App", recencyRank: 0),
+                window(id: 2, processIdentifier: 101, title: "Stacked Second", recencyRank: 1),
+                window(id: 3, processIdentifier: 102, title: "Used Last", recencyRank: 2),
+                window(id: 4, processIdentifier: 103, title: "Menu", layer: 25, recencyRank: 3),
+            ]
+        )
+        let recencyHistory = WindowRecencyHistory()
+        recencyHistory.record(windowID: 3)
+        recencyHistory.record(windowID: 1)
+        let cycler = WindowCycler(provider: provider, recencyHistory: recencyHistory)
+
+        #expect(cycler.mostRecentWindow(excludingProcessIdentifier: 100)?.id == 3)
+    }
+
+    @Test("the most recent window falls back to stacking order and ignores non-switchable windows")
+    func mostRecentWindowFallsBackToStackingOrder() {
+        let provider = StubWindowProvider(
+            windows: [
+                window(id: 4, processIdentifier: 103, title: "Menu", layer: 25, recencyRank: 0),
+                window(id: 1, processIdentifier: 100, title: "Closing App", recencyRank: 1),
+                window(id: 3, processIdentifier: 102, title: "Behind", recencyRank: 3),
+                window(id: 2, processIdentifier: 101, title: "In Front", recencyRank: 2),
+            ]
+        )
+        let cycler = WindowCycler(provider: provider)
+
+        #expect(cycler.mostRecentWindow(excludingProcessIdentifier: 100)?.id == 2)
+        #expect(
+            WindowCycler(provider: StubWindowProvider(windows: [provider.windows[1]]))
+                .mostRecentWindow(excludingProcessIdentifier: 100) == nil
+        )
+    }
+
+    @Test("finding the most recent window leaves the recency log alone")
+    func mostRecentWindowLeavesRecencyLogAlone() {
+        let provider = MutableWindowProvider(
+            windows: [
+                window(id: 1, processIdentifier: 100, title: "Front", recencyRank: 0),
+                window(id: 2, processIdentifier: 101, title: "Recorded", recencyRank: 1),
+                window(id: 3, processIdentifier: 102, title: "Other", recencyRank: 2),
+            ]
+        )
+        let recencyHistory = WindowRecencyHistory()
+        recencyHistory.record(windowID: 2)
+        let cycler = WindowCycler(provider: provider, recencyHistory: recencyHistory)
+        _ = cycler.start(scope: .allApplications)
+
+        // A new front window would be folded into the log by start(scope:);
+        // here it must not outrank the window the user actually used.
+        provider.windows = [
+            window(id: 3, processIdentifier: 102, title: "Other", recencyRank: 0),
+            window(id: 2, processIdentifier: 101, title: "Recorded", recencyRank: 1),
+            window(id: 1, processIdentifier: 100, title: "Front", recencyRank: 2),
+        ]
+
+        #expect(cycler.mostRecentWindow(excludingProcessIdentifier: 100)?.id == 2)
+    }
+
     @Test("excludes untitled windows without a matching accessibility window")
     func excludesUntitledWindowsWithoutAccessibilityWindow() {
         let provider = StubWindowProvider(

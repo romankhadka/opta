@@ -9,8 +9,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private let launchAtLoginController: LaunchAtLoginController
     private let currentApplicationShortcutController: CurrentApplicationShortcutController
     private let onCurrentApplicationShortcutChanged: (Bool) -> Void
+    private let focusFollowsCloseSetting: UserDefaultsFocusFollowsCloseSetting
     private var launchAtLoginItem: NSMenuItem?
     private var currentApplicationShortcutItem: NSMenuItem?
+    private var focusFollowsCloseItem: NSMenuItem?
 
     init(
         launchAtLoginController: LaunchAtLoginController = LaunchAtLoginController(
@@ -19,12 +21,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         currentApplicationShortcutController: CurrentApplicationShortcutController = CurrentApplicationShortcutController(
             store: UserDefaultsCurrentApplicationShortcutStore()
         ),
+        focusFollowsCloseSetting: UserDefaultsFocusFollowsCloseSetting = UserDefaultsFocusFollowsCloseSetting(),
         onCurrentApplicationShortcutChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.launchAtLoginController = launchAtLoginController
         self.currentApplicationShortcutController = currentApplicationShortcutController
         self.onCurrentApplicationShortcutChanged = onCurrentApplicationShortcutChanged
+        self.focusFollowsCloseSetting = focusFollowsCloseSetting
         super.init()
 
         statusItem.button?.image = OptionMarkImage.menuBar()
@@ -48,6 +52,15 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         )
         self.currentApplicationShortcutItem = currentApplicationShortcutItem
         menu.addItem(currentApplicationShortcutItem)
+
+        let focusFollowsCloseItem = NSMenuItem(
+            title: "Focus Next Window After Closing Last",
+            action: #selector(toggleFocusFollowsClose),
+            keyEquivalent: ""
+        )
+        focusFollowsCloseItem.toolTip = "When an app's last window closes, focus the window you used before it."
+        self.focusFollowsCloseItem = focusFollowsCloseItem
+        menu.addItem(focusFollowsCloseItem)
         menu.addItem(.separator())
 
         let launchAtLoginItem = NSMenuItem(
@@ -97,6 +110,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
         refreshLaunchAtLoginMenuItem()
         refreshCurrentApplicationShortcutMenuItem()
+        refreshFocusFollowsCloseMenuItem()
 
         return menu
     }
@@ -104,6 +118,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         refreshLaunchAtLoginMenuItem()
         refreshCurrentApplicationShortcutMenuItem()
+        refreshFocusFollowsCloseMenuItem()
     }
 
     @objc
@@ -133,6 +148,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         currentApplicationShortcutController.toggle()
         refreshCurrentApplicationShortcutMenuItem()
         onCurrentApplicationShortcutChanged(currentApplicationShortcutController.isEnabled)
+    }
+
+    @objc
+    private func toggleFocusFollowsClose() {
+        focusFollowsCloseSetting.isEnabled.toggle()
+        refreshFocusFollowsCloseMenuItem()
     }
 
     @objc
@@ -191,6 +212,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         currentApplicationShortcutItem.toolTip = isEnabled
             ? "Turn off if you type grave-accented characters with ⌥`."
             : nil
+    }
+
+    private func refreshFocusFollowsCloseMenuItem() {
+        focusFollowsCloseItem?.state = focusFollowsCloseSetting.isEnabled ? .on : .off
     }
 
     private func showLaunchAtLoginError(_ error: Error) {
