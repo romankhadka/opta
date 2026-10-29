@@ -21,13 +21,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var cycler = WindowCycler(provider: windowProvider, recencyHistory: recencyHistory)
     private lazy var coordinator = SwitcherCoordinator(cycler: cycler)
-    private lazy var focusTracker = WindowFocusTracker { [weak self] windowID in
-        self?.recencyHistory.record(windowID: windowID)
-    }
+    private let focusFollowsCloseSetting = UserDefaultsFocusFollowsCloseSetting()
+    private lazy var focusFollowsClose = FocusFollowsCloseController(
+        setting: focusFollowsCloseSetting,
+        cycler: cycler,
+        activator: windowActivator,
+        onWindowActivated: { [weak self] windowID in
+            self?.recencyHistory.record(windowID: windowID)
+        }
+    )
+    private lazy var focusTracker = WindowFocusTracker(
+        onWindowFocused: { [weak self] windowID in
+            self?.recencyHistory.record(windowID: windowID)
+        },
+        onWindowClosed: { [weak self] windowID, processIdentifier in
+            self?.focusFollowsClose.windowDidClose(windowID: windowID, processIdentifier: processIdentifier)
+        }
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusMenuController = StatusMenuController(
             currentApplicationShortcutController: currentApplicationShortcut,
+            focusFollowsCloseSetting: focusFollowsCloseSetting,
             onCurrentApplicationShortcutChanged: { [weak self] isEnabled in
                 self?.keyboardEventTap?.setCurrentApplicationShortcutEnabled(isEnabled)
             }

@@ -25,7 +25,8 @@ Opta is a native macOS window switcher for people who want Option-based cycling:
 - Press `Escape` to dismiss the switcher without activating anything.
 - Hover a tile to select it.
 - Click a tile to activate that window immediately.
-- Use the menu bar item to toggle current-application cycling or Launch at Login.
+- Close an app's last window and Opta focuses the window you used before it.
+- Use the menu bar item to toggle current-application cycling, focus after closing, or Launch at Login.
 
 The switcher shows live window previews when Screen Recording permission is available, then falls back to the application icon. Each tile includes the window title, application name, and app icon.
 
@@ -130,6 +131,17 @@ characters such as à, è, ì, ò, and ù. If you type those, open the Opta menu
 icon and turn off **Cycle Current App (⌥`)**; the dead key then passes through to
 the focused app. `Option` + `Tab` cycling is unaffected. The choice is
 remembered across launches.
+
+## Focus after closing the last window
+
+When you close the last window of the app in front, macOS keeps that empty
+app in front. Opta focuses the window you used before it instead, on the
+current Space. When the app still has other windows, macOS focuses one of
+them itself and Opta leaves that alone. Closes in background apps, and in
+Spotlight, Alfred, and Hammerspoon, never move focus.
+
+Turn it off with **Focus Next Window After Closing Last** in the menu bar
+icon. The choice is remembered across launches.
 
 ## Launch at Login
 
