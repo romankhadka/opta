@@ -8,11 +8,13 @@ final class KeyboardEventTap: @unchecked Sendable {
 
     private let onCycleAllApplications: @MainActor @Sendable (WindowCycleDirection) -> Void
     private let onCycleCurrentApplication: @MainActor @Sendable (WindowCycleDirection) -> Void
+    private let onCycleActiveSession: @MainActor @Sendable (WindowCycleDirection) -> Void
     private let onModifierRelease: @MainActor @Sendable () -> Void
     private let onCancel: @MainActor @Sendable () -> Void
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var optionWasDown = false
+    private var shiftBackwardStepGate = ShiftBackwardStepGate()
     // Written from the main actor, read on the event-tap callback; both run on
     // the main run loop, so the @unchecked Sendable access is single-threaded.
     private var sessionIsActive = false
@@ -21,11 +23,13 @@ final class KeyboardEventTap: @unchecked Sendable {
     init(
         onCycleAllApplications: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onCycleCurrentApplication: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
+        onCycleActiveSession: @escaping @MainActor @Sendable (WindowCycleDirection) -> Void,
         onModifierRelease: @escaping @MainActor @Sendable () -> Void,
         onCancel: @escaping @MainActor @Sendable () -> Void
     ) {
         self.onCycleAllApplications = onCycleAllApplications
         self.onCycleCurrentApplication = onCycleCurrentApplication
+        self.onCycleActiveSession = onCycleActiveSession
         self.onModifierRelease = onModifierRelease
         self.onCancel = onCancel
     }
@@ -110,18 +114,30 @@ final class KeyboardEventTap: @unchecked Sendable {
         return handleKeyDown(event)
     }
 
-    // Shift alone never moves the selection, so Shift+Tab steps back exactly
-    // once; the backward step comes from the key-down handler.
     private func handleFlagsChanged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        let optionIsDown = event.flags.contains(.maskAlternate)
+        let flags = event.flags
+        let optionIsDown = flags.contains(.maskAlternate)
 
         if optionWasDown && !optionIsDown {
             optionWasDown = false
+            shiftBackwardStepGate.reset()
             Task { @MainActor [onModifierRelease] in
                 onModifierRelease()
             }
         } else if optionIsDown {
+            let stepsBack = shiftBackwardStepGate.shiftChanged(
+                isDown: flags.contains(.maskShift),
+                sessionIsActive: sessionIsActive
+            )
+            if stepsBack {
+                Task { @MainActor [onCycleActiveSession] in
+                    onCycleActiveSession(.backward)
+                }
+            }
+
             optionWasDown = true
+        } else {
+            shiftBackwardStepGate.reset()
         }
 
         return Unmanaged.passUnretained(event)
@@ -156,10 +172,15 @@ final class KeyboardEventTap: @unchecked Sendable {
         }
 
         optionWasDown = true
-        let direction: WindowCycleDirection = flags.contains(.maskShift) ? .backward : .forward
+        let shiftIsDown = flags.contains(.maskShift)
+        let direction: WindowCycleDirection = shiftIsDown ? .backward : .forward
 
         switch keyCode {
         case Self.tabKeyCode:
+            guard shiftBackwardStepGate.cycleKeyPressed(shiftIsDown: shiftIsDown) else {
+                return nil
+            }
+
             Task { @MainActor [onCycleAllApplications, direction] in
                 onCycleAllApplications(direction)
             }
@@ -169,6 +190,10 @@ final class KeyboardEventTap: @unchecked Sendable {
             // working for typing à/è/ì/ò/ù.
             guard currentApplicationShortcutEnabled else {
                 return Unmanaged.passUnretained(event)
+            }
+
+            guard shiftBackwardStepGate.cycleKeyPressed(shiftIsDown: shiftIsDown) else {
+                return nil
             }
 
             Task { @MainActor [onCycleCurrentApplication, direction] in
