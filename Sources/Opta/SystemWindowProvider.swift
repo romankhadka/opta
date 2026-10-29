@@ -84,10 +84,21 @@ struct SystemWindowProvider: WindowProviding {
             let title = rawWindow[kCGWindowName as String] as? String ?? ""
             let isOnscreen = number(rawWindow[kCGWindowIsOnscreen as String])?.boolValue ?? true
 
-            let hasAccessibilityWindow = !title.isEmpty ||
-                accessibilityWindowIDs(forProcessIdentifier: processIdentifier).contains(windowNumber)
+            // Only an untitled window the switcher would otherwise show needs
+            // the accessibility lookup. Menu bar items, overlays and zero-size
+            // windows are dropped anyway, and asking their processes costs a
+            // synchronous round trip each on the hotkey path.
+            let needsAccessibilityCheck = title.isEmpty &&
+                layer == 0 &&
+                isOnscreen &&
+                bounds.width > 0 &&
+                bounds.height > 0
+            let hasAccessibilityWindow = !title.isEmpty || (
+                needsAccessibilityCheck &&
+                    accessibilityWindowIDs(forProcessIdentifier: processIdentifier).contains(windowNumber)
+            )
 
-            if title.isEmpty, layer == 0, !hasAccessibilityWindow {
+            if needsAccessibilityCheck, !hasAccessibilityWindow {
                 logger.debug(
                     "dropping untitled ghost window id=\(windowNumber, privacy: .public) pid=\(processIdentifier, privacy: .public) app=\(applicationName, privacy: .public)"
                 )
