@@ -20,7 +20,7 @@ Opta is a native macOS window switcher for people who want Option-based cycling:
 
 - `Option` + `Tab` cycles through visible windows from all applications.
 - `Option` + `` ` `` cycles through visible windows from the current application.
-- Add `Shift` to either shortcut to cycle backward.
+- Add `Shift` to either shortcut to cycle backward. While the switcher is open, tapping `Shift` alone also steps back one window.
 - Release `Option` to activate the selected window.
 - Press `Escape` to dismiss the switcher without activating anything.
 - Hover a tile to select it.

@@ -24,6 +24,7 @@ struct PerformanceInstrumentationTests {
         #expect(metrics.contains("category: .pointsOfInterest"))
         #expect(appDelegate.contains("PerformanceMetrics.begin(\"CycleAllApplications\")"))
         #expect(appDelegate.contains("PerformanceMetrics.begin(\"CycleCurrentApplication\")"))
+        #expect(appDelegate.contains("PerformanceMetrics.begin(\"CycleActiveSession\")"))
         #expect(overlay.contains("PerformanceMetrics.begin(\"OverlayRender\")"))
         #expect(previewProvider.contains("PerformanceMetrics.begin(\"PreviewRefresh\")"))
         #expect(previewProvider.contains("PerformanceMetrics.begin(\"IconLookup\")"))

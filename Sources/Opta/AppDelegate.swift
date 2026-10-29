@@ -149,6 +149,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onCycleCurrentApplication: { [weak self] direction in
                 self?.cycleCurrentApplication(direction: direction)
             },
+            onCycleActiveSession: { [weak self] direction in
+                self?.cycleActiveSession(direction: direction)
+            },
             onModifierRelease: { [weak self] in
                 self?.commitSelection()
             },
@@ -184,6 +187,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         logger.debug(
             "cycle current pid=\(frontmostProcessIdentifier, privacy: .public) direction=\(String(describing: direction), privacy: .public) windows=\(session.windows.map(\.id).description, privacy: .public) selected=\(session.selectedWindow?.id ?? 0, privacy: .public)"
+        )
+        show(session: session)
+    }
+
+    private func cycleActiveSession(direction: WindowCycleDirection) {
+        let measurement = PerformanceMetrics.begin("CycleActiveSession")
+        defer { PerformanceMetrics.end(measurement) }
+
+        guard let session = coordinator.advanceActiveSession(direction) else {
+            return
+        }
+
+        logger.debug(
+            "cycle active direction=\(String(describing: direction), privacy: .public) selected=\(session.selectedWindow?.id ?? 0, privacy: .public)"
         )
         show(session: session)
     }
