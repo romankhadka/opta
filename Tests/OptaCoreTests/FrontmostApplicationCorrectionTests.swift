@@ -83,13 +83,65 @@ struct FrontmostApplicationCorrectionTests {
         #expect(corrected.map(\.id) == [3, 1, 2, 4])
         #expect(corrected.map(\.recencyRank) == [0, 1, 2, 3])
     }
+    @Test("promotes the frontmost application's real window past its menu bar item")
+    func promotesRealWindowPastNonCyclableWindow() {
+        // On macOS 14 and 15 an app's menu bar item is a layer-25 window that
+        // the list orders ahead of every normal window.
+        let windows = [
+            window(id: 9, processIdentifier: 101, title: "", recencyRank: 0, layer: 25),
+            window(id: 1, processIdentifier: 100, title: "Ghostty", recencyRank: 1),
+            window(id: 2, processIdentifier: 101, title: "Chrome", recencyRank: 2),
+        ]
+
+        let corrected = FrontmostApplicationCorrection.correcting(
+            windows,
+            frontmostProcessIdentifier: 101
+        )
+
+        #expect(corrected.map(\.id) == [2, 9, 1])
+        #expect(corrected.map(\.recencyRank) == [0, 1, 2])
+    }
+
+    @Test("skips an untitled overlay strip in front of the frontmost application's window")
+    func skipsUntitledOverlayStrip() {
+        let windows = [
+            window(id: 1, processIdentifier: 100, title: "Ghostty", recencyRank: 0),
+            window(id: 8, processIdentifier: 101, title: "", recencyRank: 1, hasAccessibilityWindow: false),
+            window(id: 2, processIdentifier: 101, title: "Chrome", recencyRank: 2),
+        ]
+
+        let corrected = FrontmostApplicationCorrection.correcting(
+            windows,
+            frontmostProcessIdentifier: 101
+        )
+
+        #expect(corrected.map(\.id) == [2, 1, 8])
+    }
+
+    @Test("leaves the order unchanged when only a non-cyclable window sits ahead of the frontmost one")
+    func leavesOrderWhenFrontmostIsFirstCyclableWindow() {
+        let windows = [
+            window(id: 9, processIdentifier: 100, title: "", recencyRank: 0, layer: 25),
+            window(id: 2, processIdentifier: 101, title: "Chrome", recencyRank: 1),
+            window(id: 1, processIdentifier: 100, title: "Ghostty", recencyRank: 2),
+        ]
+
+        let corrected = FrontmostApplicationCorrection.correcting(
+            windows,
+            frontmostProcessIdentifier: 101
+        )
+
+        #expect(corrected == windows)
+    }
 }
 
 private func window(
     id: UInt32,
     processIdentifier: Int32,
     title: String,
-    recencyRank: Int
+    recencyRank: Int,
+    layer: Int = 0,
+    hasAccessibilityWindow: Bool = true
 ) -> WindowSnapshot {
     WindowSnapshot(
         id: id,
@@ -97,9 +149,9 @@ private func window(
         applicationName: "App",
         title: title,
         isOnscreen: true,
-        layer: 0,
+        layer: layer,
         bounds: WindowBounds(x: 0, y: 0, width: 800, height: 600),
         recencyRank: recencyRank,
-        hasAccessibilityWindow: true
+        hasAccessibilityWindow: hasAccessibilityWindow
     )
 }

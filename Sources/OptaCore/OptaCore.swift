@@ -61,14 +61,21 @@ public enum FrontmostApplicationCorrection {
     /// NSWorkspace's notion of the frontmost application stays correct in that
     /// case, so callers pass it here to correct the window list's own ordering
     /// when the two disagree.
+    ///
+    /// Only cyclable windows count. The list also holds windows the switcher
+    /// drops, such as menu bar items on macOS 14 and 15 and Chrome's untitled
+    /// overlay strips, and they sit in front of their app's real window.
+    /// Promoting one of those left the real window where it was.
     public static func correcting(
         _ windows: [WindowSnapshot],
         frontmostProcessIdentifier: Int32?
     ) -> [WindowSnapshot] {
         guard
             let frontmostProcessIdentifier,
-            let frontmostIndex = windows.firstIndex(where: { $0.processIdentifier == frontmostProcessIdentifier }),
-            windows[frontmostIndex].recencyRank != 0
+            let frontmostIndex = windows.firstIndex(where: {
+                $0.processIdentifier == frontmostProcessIdentifier && $0.isCyclable
+            }),
+            frontmostIndex != windows.firstIndex(where: \.isCyclable)
         else {
             return windows
         }
