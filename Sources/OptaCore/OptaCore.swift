@@ -180,6 +180,19 @@ public final class WindowCycler {
 
         return WindowCycleSession(windows: windows)
     }
+
+    /// The most recently used switchable window outside the given process.
+    ///
+    /// Unlike `start(scope:)` this does not fold the current frontmost window
+    /// into the recency log: it runs while the frontmost application is
+    /// closing its last window, so the system's front window is no signal.
+    public func mostRecentWindow(excludingProcessIdentifier processIdentifier: Int32) -> WindowSnapshot? {
+        let candidates = provider.availableWindows().filter { window in
+            window.isCyclable && window.processIdentifier != processIdentifier
+        }
+
+        return (recencyHistory?.sorted(candidates) ?? candidates.stableSortedByRecentUse()).first
+    }
 }
 
 public final class SwitcherCoordinator {
