@@ -308,24 +308,25 @@ struct WindowCyclerTests {
         #expect(secondPress.selectedWindow?.id == 2)
     }
 
-    @Test("an active session can advance backward without another scope hotkey")
-    func activeSessionCanAdvanceBackwardWithoutAnotherScopeHotkey() {
+    @Test("a backward press within a session steps back exactly one window")
+    func backwardPressWithinSessionStepsBackOneWindow() {
         let provider = StubWindowProvider(
             windows: [
                 window(id: 1, processIdentifier: 100, title: "Current"),
-                window(id: 2, processIdentifier: 100, title: "Previous"),
-                window(id: 3, processIdentifier: 101, title: "Other App"),
+                window(id: 2, processIdentifier: 101, title: "Previous"),
+                window(id: 3, processIdentifier: 102, title: "Older"),
             ]
         )
         let cycler = WindowCycler(provider: provider)
         let coordinator = SwitcherCoordinator(cycler: cycler)
 
-        let firstPress = coordinator.press(scope: .currentApplication(processIdentifier: 100))
-        #expect(firstPress.selectedWindow?.id == 2)
+        _ = coordinator.press(scope: .allApplications)
+        let secondPress = coordinator.press(scope: .allApplications)
+        #expect(secondPress.selectedWindow?.id == 3)
 
-        let shiftedPress = coordinator.advanceActiveSession(.backward)
-        #expect(shiftedPress?.selectedWindow?.id == 1)
-        #expect(coordinator.release()?.id == 1)
+        let shiftedPress = coordinator.press(scope: .allApplications, direction: .backward)
+        #expect(shiftedPress.selectedWindow?.id == 2)
+        #expect(coordinator.release()?.id == 2)
     }
 
     @Test("cancelling a session clears it without selecting a window")
