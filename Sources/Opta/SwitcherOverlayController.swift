@@ -107,10 +107,7 @@ final class SwitcherOverlayController {
             makePanel(contentView: hostingView)
         }
 
-        // The window server ranks the active window first. Opta's own
-        // recency log can order the session differently, so ask the rank.
-        let activeWindow = session.windows.min { $0.recencyRank < $1.recencyRank }
-        positionPanel(itemCount: items.count, activeWindow: activeWindow)
+        positionPanel(itemCount: items.count, activeWindowBounds: session.activeWindow?.bounds)
     }
 
     private func handleHover(windowID: UInt32) {
@@ -160,7 +157,7 @@ final class SwitcherOverlayController {
         }
     }
 
-    private func positionPanel(itemCount: Int, activeWindow: WindowSnapshot?) {
+    private func positionPanel(itemCount: Int, activeWindowBounds: WindowBounds?) {
         guard let panel else {
             return
         }
@@ -174,7 +171,7 @@ final class SwitcherOverlayController {
             CGFloat(rowCount) * SwitcherLayout.tileHeight +
             CGFloat(max(rowCount - 1, 0)) * SwitcherLayout.tileSpacing
 
-        let screen = activeWindow.flatMap(screenContaining) ??
+        let screen = activeWindowBounds.flatMap(screenContaining) ??
             screenContainingMouse() ??
             NSScreen.main ??
             NSScreen.screens.first
@@ -188,16 +185,11 @@ final class SwitcherOverlayController {
     }
 
     /// The display that shows the largest part of the window.
-    private func screenContaining(_ window: WindowSnapshot) -> NSScreen? {
+    private func screenContaining(_ windowBounds: WindowBounds) -> NSScreen? {
         let screens = NSScreen.screens
-        guard let primaryScreen = screens.first else {
-            return nil
-        }
-
         return OverlayScreenPolicy.screenIndex(
-            containing: window.bounds,
-            screenFrames: screens.map(\.frame),
-            primaryScreenHeight: primaryScreen.frame.height
+            containing: windowBounds,
+            screenFrames: screens.map(\.frame)
         ).map { screens[$0] }
     }
 

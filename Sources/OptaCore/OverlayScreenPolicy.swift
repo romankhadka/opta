@@ -13,14 +13,13 @@ public enum OverlayScreenPolicy {
     ///   - windowBounds: The window frame in window-server coordinates: origin
     ///     at the top-left of the primary display, y grows down.
     ///   - screenFrames: Screen frames in AppKit coordinates: origin at the
-    ///     bottom-left of the primary display, y grows up.
-    ///   - primaryScreenHeight: The height of the primary display, which
-    ///     relates the two coordinate spaces.
+    ///     bottom-left of the primary display, y grows up. The primary
+    ///     display comes first, as in `NSScreen.screens`.
     public static func screenIndex(
         containing windowBounds: WindowBounds,
-        screenFrames: [CGRect],
-        primaryScreenHeight: CGFloat
+        screenFrames: [CGRect]
     ) -> Int? {
+        let primaryScreenHeight = screenFrames.first?.height ?? 0
         let windowFrame = CGRect(
             x: windowBounds.x,
             y: primaryScreenHeight - windowBounds.y - windowBounds.height,
@@ -32,10 +31,6 @@ public enum OverlayScreenPolicy {
         var bestArea: CGFloat = 0
         for (index, screenFrame) in screenFrames.enumerated() {
             let overlap = screenFrame.intersection(windowFrame)
-            guard !overlap.isNull else {
-                continue
-            }
-
             let area = overlap.width * overlap.height
             if area > bestArea {
                 bestArea = area
