@@ -107,7 +107,10 @@ final class SwitcherOverlayController {
             makePanel(contentView: hostingView)
         }
 
-        positionPanel(itemCount: items.count)
+        // The window server ranks the active window first. Opta's own
+        // recency log can order the session differently, so ask the rank.
+        let activeWindow = session.windows.min { $0.recencyRank < $1.recencyRank }
+        positionPanel(itemCount: items.count, activeWindow: activeWindow)
     }
 
     private func handleHover(windowID: UInt32) {
@@ -157,7 +160,7 @@ final class SwitcherOverlayController {
         }
     }
 
-    private func positionPanel(itemCount: Int) {
+    private func positionPanel(itemCount: Int, activeWindow: WindowSnapshot?) {
         guard let panel else {
             return
         }
@@ -171,7 +174,10 @@ final class SwitcherOverlayController {
             CGFloat(rowCount) * SwitcherLayout.tileHeight +
             CGFloat(max(rowCount - 1, 0)) * SwitcherLayout.tileSpacing
 
-        let screen = screenContainingMouse() ?? NSScreen.main ?? NSScreen.screens.first
+        let screen = activeWindow.flatMap(screenContaining) ??
+            screenContainingMouse() ??
+            NSScreen.main ??
+            NSScreen.screens.first
         let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
         let origin = NSPoint(
             x: visibleFrame.midX - width / 2,
@@ -179,6 +185,20 @@ final class SwitcherOverlayController {
         )
 
         panel.setFrame(NSRect(origin: origin, size: NSSize(width: width, height: height)), display: true)
+    }
+
+    /// The display that shows the largest part of the window.
+    private func screenContaining(_ window: WindowSnapshot) -> NSScreen? {
+        let screens = NSScreen.screens
+        guard let primaryScreen = screens.first else {
+            return nil
+        }
+
+        return OverlayScreenPolicy.screenIndex(
+            containing: window.bounds,
+            screenFrames: screens.map(\.frame),
+            primaryScreenHeight: primaryScreen.frame.height
+        ).map { screens[$0] }
     }
 
     private func screenContainingMouse() -> NSScreen? {
