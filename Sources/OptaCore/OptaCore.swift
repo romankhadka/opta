@@ -117,10 +117,15 @@ public enum WindowCycleDirection: Equatable, Sendable {
 public struct WindowCycleSession: Equatable, Sendable {
     public let windows: [WindowSnapshot]
     public private(set) var selectedIndex: Int
+    /// The window that had focus when the session started. Opta's recency
+    /// log can sort another window first in `windows`, so this comes from the
+    /// window list's own front-to-back rank instead.
+    public let activeWindow: WindowSnapshot?
 
-    public init(windows: [WindowSnapshot], selectedIndex: Int = 0) {
+    public init(windows: [WindowSnapshot], selectedIndex: Int = 0, activeWindow: WindowSnapshot? = nil) {
         self.windows = windows
         self.selectedIndex = windows.indices.contains(selectedIndex) ? selectedIndex : 0
+        self.activeWindow = activeWindow
     }
 
     public var selectedWindow: WindowSnapshot? {
@@ -178,7 +183,10 @@ public final class WindowCycler {
                 }
             }
 
-        return WindowCycleSession(windows: windows)
+        return WindowCycleSession(
+            windows: windows,
+            activeWindow: cyclableWindows.min { $0.recencyRank < $1.recencyRank }
+        )
     }
 
     /// The most recently used switchable window outside the given process.

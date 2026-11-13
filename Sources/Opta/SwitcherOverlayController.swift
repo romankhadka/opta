@@ -107,7 +107,7 @@ final class SwitcherOverlayController {
             makePanel(contentView: hostingView)
         }
 
-        positionPanel(itemCount: items.count)
+        positionPanel(itemCount: items.count, activeWindowBounds: session.activeWindow?.bounds)
     }
 
     private func handleHover(windowID: UInt32) {
@@ -157,7 +157,7 @@ final class SwitcherOverlayController {
         }
     }
 
-    private func positionPanel(itemCount: Int) {
+    private func positionPanel(itemCount: Int, activeWindowBounds: WindowBounds?) {
         guard let panel else {
             return
         }
@@ -171,7 +171,10 @@ final class SwitcherOverlayController {
             CGFloat(rowCount) * SwitcherLayout.tileHeight +
             CGFloat(max(rowCount - 1, 0)) * SwitcherLayout.tileSpacing
 
-        let screen = screenContainingMouse() ?? NSScreen.main ?? NSScreen.screens.first
+        let screen = activeWindowBounds.flatMap(screenContaining) ??
+            screenContainingMouse() ??
+            NSScreen.main ??
+            NSScreen.screens.first
         let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
         let origin = NSPoint(
             x: visibleFrame.midX - width / 2,
@@ -179,6 +182,15 @@ final class SwitcherOverlayController {
         )
 
         panel.setFrame(NSRect(origin: origin, size: NSSize(width: width, height: height)), display: true)
+    }
+
+    /// The display that shows the largest part of the window.
+    private func screenContaining(_ windowBounds: WindowBounds) -> NSScreen? {
+        let screens = NSScreen.screens
+        return OverlayScreenPolicy.screenIndex(
+            containing: windowBounds,
+            screenFrames: screens.map(\.frame)
+        ).map { screens[$0] }
     }
 
     private func screenContainingMouse() -> NSScreen? {

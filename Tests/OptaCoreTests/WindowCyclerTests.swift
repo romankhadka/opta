@@ -74,6 +74,7 @@ struct WindowCyclerTests {
 
         #expect(session.windows.map(\.id) == [2, 1, 3])
         #expect(session.selectedWindow?.id == 2)
+        #expect(session.activeWindow?.id == 1)
     }
 
     @Test("new frontmost windows outrank older recorded windows")
